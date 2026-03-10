@@ -1,4 +1,7 @@
 package com.itlab.domain.model
 
-class Note {
-}
+data class Note(
+    val id: String = "",
+    val title: String = "",
+    val content: String = "",
+)

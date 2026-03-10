@@ -1,4 +1,3 @@
 package com.itlab.domain.usecase
 
-class AnalyzeNoteUseCase {
-}
+class AnalyzeNoteUseCase

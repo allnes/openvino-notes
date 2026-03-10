@@ -1,4 +1,3 @@
 package com.itlab.data.repository
 
-class NotesRepositoryImpl {
-}
+class NotesRepositoryImpl

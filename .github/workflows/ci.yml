@@ -71,17 +71,28 @@ jobs:
             SDKMANAGER="$(command -v sdkmanager)"
           fi
 
+          set +o pipefail
           yes | "${SDKMANAGER}" --licenses >/dev/null
+          set -o pipefail
           "${SDKMANAGER}" "platforms;android-${ANDROID_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS}"
 
       - name: Quality gates
         run: |
           ./gradlew \
-            assembleDebug \
+            ai:assembleDebug \
+            app:assembleDebug \
+            data:assembleDebug \
+            domain:assembleDebug \
             ktlintCheck \
             detekt \
-            lintDebug \
-            testDebugUnitTest \
+            ai:lintDebug \
+            app:lintDebug \
+            data:lintDebug \
+            domain:lintDebug \
+            ai:testDebugUnitTest \
+            app:testDebugUnitTest \
+            data:testDebugUnitTest \
+            domain:testDebugUnitTest \
             koverXmlReport \
             koverVerify \
             --stacktrace
@@ -193,7 +204,9 @@ jobs:
             SDKMANAGER="$(command -v sdkmanager)"
           fi
 
+          set +o pipefail
           yes | "${SDKMANAGER}" --licenses >/dev/null
+          set -o pipefail
           "${SDKMANAGER}" "platforms;android-${ANDROID_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS}"
 
       - name: Initialize CodeQL
@@ -203,7 +216,13 @@ jobs:
           build-mode: manual
 
       - name: Build for CodeQL
-        run: ./gradlew assembleDebug --stacktrace
+        run: |
+          ./gradlew \
+            ai:assembleDebug \
+            app:assembleDebug \
+            data:assembleDebug \
+            domain:assembleDebug \
+            --stacktrace
 
       - name: Analyze
         uses: github/codeql-action/analyze@v4
@@ -237,14 +256,22 @@ jobs:
             SDKMANAGER="$(command -v sdkmanager)"
           fi
 
+          set +o pipefail
           yes | "${SDKMANAGER}" --licenses >/dev/null
+          set -o pipefail
           "${SDKMANAGER}" "platforms;android-${ANDROID_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS}"
 
       - name: Release checks
         run: |
           ./gradlew \
-            assembleRelease \
-            lintRelease \
+            ai:assembleRelease \
+            app:assembleRelease \
+            data:assembleRelease \
+            domain:assembleRelease \
+            ai:lintRelease \
+            app:lintRelease \
+            data:lintRelease \
+            domain:lintRelease \
             --stacktrace
 
       - name: Upload release artifacts
@@ -295,7 +322,9 @@ jobs:
             SDKMANAGER="$(command -v sdkmanager)"
           fi
 
+          set +o pipefail
           yes | "${SDKMANAGER}" --licenses >/dev/null
+          set -o pipefail
           "${SDKMANAGER}" \
             "platforms;android-${ANDROID_API_LEVEL}" \
             "build-tools;${ANDROID_BUILD_TOOLS}" \

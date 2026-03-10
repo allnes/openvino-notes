@@ -1,4 +1,3 @@
 package com.itlab.domain.repository
 
-class NotesRepository {
-}
+interface NotesRepository

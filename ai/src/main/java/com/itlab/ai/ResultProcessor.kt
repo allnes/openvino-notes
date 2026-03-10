@@ -1,4 +1,3 @@
 package com.itlab.ai
 
-class ResultProcessor {
-}
+class ResultProcessor

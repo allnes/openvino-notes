@@ -25,7 +25,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
     }
@@ -38,6 +38,17 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    testOptions {
+        managedDevices {
+            localDevices {
+                create("pixel7api34") {
+                    device = "Pixel 7"
+                    apiLevel = 34
+                    systemImageSource = "aosp-atd"
+                }
+            }
+        }
     }
 }
 
