@@ -79,6 +79,7 @@ jobs:
       - name: Quality gates
         run: |
           ./gradlew \
+            --refresh-dependencies \
             ai:assembleDebug \
             app:assembleDebug \
             data:assembleDebug \
@@ -218,6 +219,7 @@ jobs:
       - name: Build for CodeQL
         run: |
           ./gradlew \
+            --refresh-dependencies \
             ai:assembleDebug \
             app:assembleDebug \
             data:assembleDebug \
@@ -264,6 +266,7 @@ jobs:
       - name: Release checks
         run: |
           ./gradlew \
+            --refresh-dependencies \
             ai:assembleRelease \
             app:assembleRelease \
             data:assembleRelease \
@@ -333,6 +336,7 @@ jobs:
       - name: Managed device tests
         run: |
           ./gradlew \
+            --refresh-dependencies \
             app:pixel7api34DebugAndroidTest \
             -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
             --stacktrace
