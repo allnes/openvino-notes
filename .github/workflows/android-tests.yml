@@ -9,8 +9,8 @@ env:
   JAVA_VERSION: "17"
 
 jobs:
-  managed-device-validation:
-    name: Managed Device Validation
+  emulator-validation:
+    name: Emulator Validation
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -26,31 +26,51 @@ jobs:
           android-api-level: ${{ env.ANDROID_API_LEVEL }}
           android-build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
 
-      - name: Validate managed device tasks
+      - name: Validate debug APK tasks
         shell: bash
         run: |
           ./gradlew \
-            app:pixel7api34X86DebugAndroidTest \
-            app:pixel7api34Arm64DebugAndroidTest \
+            app:assembleDebug \
+            app:assembleDebugAndroidTest \
             -m \
             --stacktrace
 
   android-tests:
-    name: Android Tests (${{ matrix.name }})
-    needs: managed-device-validation
+    name: Android Tests (build=${{ matrix.build_name }}, emulator=${{ matrix.emulator_name }})
+    needs: emulator-validation
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 4
       matrix:
         include:
-          - name: x86_64
+          - build_name: x86_64
+            build_artifact: debug-apks-x86_64
+            emulator_name: x86_64
             runs_on: ubuntu-24.04
             system_image: system-images;android-34;aosp_atd;x86_64
-            gradle_task: app:pixel7api34X86DebugAndroidTest
-          - name: arm64
+            device_name: pixel_7
+            test_suffix: x86-on-x86
+          - build_name: x86_64
+            build_artifact: debug-apks-x86_64
+            emulator_name: arm64
             runs_on: ubuntu-24.04-arm
             system_image: system-images;android-34;aosp_atd;arm64-v8a
-            gradle_task: app:pixel7api34Arm64DebugAndroidTest
+            device_name: pixel_7
+            test_suffix: x86-on-arm
+          - build_name: arm64
+            build_artifact: debug-apks-arm64
+            emulator_name: x86_64
+            runs_on: ubuntu-24.04
+            system_image: system-images;android-34;aosp_atd;x86_64
+            device_name: pixel_7
+            test_suffix: arm-on-x86
+          - build_name: arm64
+            build_artifact: debug-apks-arm64
+            emulator_name: arm64
+            runs_on: ubuntu-24.04-arm
+            system_image: system-images;android-34;aosp_atd;arm64-v8a
+            device_name: pixel_7
+            test_suffix: arm-on-arm
     runs-on: ${{ matrix.runs_on }}
     timeout-minutes: 45
     permissions:
@@ -68,28 +88,87 @@ jobs:
           install-system-image: "true"
           android-system-image: ${{ matrix.system_image }}
 
-      - name: Enable KVM
-        shell: bash
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
+      - name: Download build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: ${{ matrix.build_artifact }}
+          path: build-artifacts/${{ matrix.build_name }}
 
-      - name: Managed device tests
+      - name: Enable KVM when available
         shell: bash
         run: |
-          ./gradlew \
-            ${{ matrix.gradle_task }} \
-            -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
-            --stacktrace
+          if [ -e /dev/kvm ]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+              | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+          else
+            echo "/dev/kvm is not available on this runner"
+          fi
+
+      - name: Start emulator and run instrumentation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          export PATH="$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          AVD_NAME="ci-${{ matrix.test_suffix }}"
+          APK_DIR="build-artifacts/${{ matrix.build_name }}"
+          APP_APK="$(find "$APK_DIR" -name 'app-debug.apk' | head -n 1)"
+          TEST_APK="$(find "$APK_DIR" -name 'app-debug-androidTest.apk' | head -n 1)"
+
+          if [ -z "$APP_APK" ] || [ -z "$TEST_APK" ]; then
+            echo "Missing APK artifacts in $APK_DIR"
+            exit 1
+          fi
+
+          echo "no" | avdmanager create avd --force --name "$AVD_NAME" --package "${{ matrix.system_image }}" --device "${{ matrix.device_name }}"
+
+          EMULATOR_ARGS=(
+            "@$AVD_NAME"
+            -no-window
+            -no-audio
+            -no-snapshot
+            -no-boot-anim
+            -gpu swiftshader_indirect
+            -camera-back none
+            -camera-front none
+          )
+
+          if [ -e /dev/kvm ]; then
+            EMULATOR_ARGS+=(-accel on)
+          else
+            EMULATOR_ARGS+=(-accel off)
+          fi
+
+          emulator "${EMULATOR_ARGS[@]}" > emulator.log 2>&1 &
+          adb wait-for-device
+
+          until adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' | grep -q '^1$'; do
+            sleep 5
+          done
+
+          adb shell settings put global window_animation_scale 0 || true
+          adb shell settings put global transition_animation_scale 0 || true
+          adb shell settings put global animator_duration_scale 0 || true
+          adb logcat -c
+          adb logcat > logcat.txt 2>&1 &
+          LOGCAT_PID=$!
+
+          adb install -r "$APP_APK"
+          adb install -r "$TEST_APK"
+          adb shell am instrument -w -r com.itlab.notes.test/androidx.test.runner.AndroidJUnitRunner | tee instrumentation.txt
+
+          adb emu kill || true
+          wait "$LOGCAT_PID" || true
 
       - name: Upload android test artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: android-test-reports-${{ matrix.name }}
+          name: android-test-reports-${{ matrix.test_suffix }}
           if-no-files-found: ignore
           path: |
-            **/build/reports/androidTests/**
-            **/build/outputs/androidTest-results/**
+            emulator.log
+            instrumentation.txt
+            logcat.txt

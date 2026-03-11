@@ -39,14 +39,14 @@ The execution graph is staged:
 - `Dependency Review`, `Secrets`, and `Build Quality` branch from `Preflight`
 - `CodeQL` waits for `Build Quality` and `Secrets`
 - `Release` waits for `Build Quality`
-- `Android Tests` wait for `Build Quality` and `Release`
+- `Android Tests` wait for `Build Quality`
 
 Inside the reusable workflows, the expensive work is also staged:
 
 - `Preflight`: `Detect Changes` -> `Preflight`
 - `Quality`: `Quality Foundation` -> parallel `Build Quality (x86_64)`, `Build Quality (arm64)`, and `Coverage`
 - `Release`: `Release Assemble` -> `Release Lint`
-- `Android Tests`: `Managed Device Validation` -> parallel `Android Tests (x86_64/arm64)`
+- `Android Tests`: `Emulator Validation` -> 4-way matrix `(build host x emulator host)`
 
 ## Scope
 
@@ -61,7 +61,7 @@ The CI pipeline enforces these repository rules:
 - Secret scanning with `gitleaks`
 - SAST with `CodeQL`
 - Dependency change review on pull requests
-- Managed-device instrumentation tests on both `x86_64` and `arm64` Linux runners with matching host/image ABI
+- Cross-matrix Android instrumentation execution for `(x86 build, arm build) x (x86 emulator, arm emulator)`
 - Native build checks on both `x86_64` and `arm64` hosts
 
 ## Local Commands
@@ -82,14 +82,14 @@ If you touch release behavior or Android UI flows, also run:
 ```bash
 ./gradlew ai:assembleRelease app:assembleRelease data:assembleRelease domain:assembleRelease
 ./gradlew ai:lintRelease app:lintRelease data:lintRelease domain:lintRelease
-./gradlew app:pixel7api34X86DebugAndroidTest
-./gradlew app:pixel7api34Arm64DebugAndroidTest
+./gradlew app:assembleDebug app:assembleDebugAndroidTest
 ```
 
 ## Runner Policy
 
 - `Build Quality (x86_64)` runs on `ubuntu-24.04`
 - `Build Quality (arm64)` runs on `macos-15` (Apple Silicon) because current Google Linux `aapt2` artifacts are `x86-64` only, while macOS `aapt2` is universal (`x86_64` + `arm64`)
+- `Android Tests` consume APK artifacts from both build jobs and execute a `2 x 2` matrix over `build host x emulator host`
 - `Android Tests (x86_64)` run on `ubuntu-24.04` with `x86_64` system images and `testedAbi = "x86_64"`
 - `Android Tests (arm64)` run on `ubuntu-24.04-arm` with `arm64-v8a` system images and `testedAbi = "arm64-v8a"`
 - No CI stage is reserved only for nightly; the same gate set is executed on pull requests

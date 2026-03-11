@@ -74,7 +74,6 @@ jobs:
     needs:
       - preflight
       - build-quality
-      - release
     if: needs.preflight.outputs.run_android_tests == 'true'
     uses: ./.github/workflows/android-tests.yml
     permissions:

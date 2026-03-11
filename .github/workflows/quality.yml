@@ -103,6 +103,7 @@ jobs:
           ./gradlew \
             ai:assembleDebug \
             app:assembleDebug \
+            app:assembleDebugAndroidTest \
             data:assembleDebug \
             domain:assembleDebug \
             ai:testDebugUnitTest \
@@ -120,6 +121,16 @@ jobs:
           path: |
             **/build/reports/tests/**
             **/build/outputs/unit_test_code_coverage/**
+
+      - name: Upload debug APK artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: debug-apks-x86_64
+          if-no-files-found: error
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 
   build-quality-arm64:
     name: Build Quality (arm64)
@@ -145,6 +156,7 @@ jobs:
           ./gradlew \
             ai:assembleDebug \
             app:assembleDebug \
+            app:assembleDebugAndroidTest \
             data:assembleDebug \
             domain:assembleDebug \
             ai:testDebugUnitTest \
@@ -162,6 +174,16 @@ jobs:
           path: |
             **/build/reports/tests/**
             **/build/outputs/unit_test_code_coverage/**
+
+      - name: Upload debug APK artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: debug-apks-arm64
+          if-no-files-found: error
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 
   coverage:
     name: Coverage
