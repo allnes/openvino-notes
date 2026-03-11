@@ -270,7 +270,7 @@ jobs:
         with:
           paths: |
             build/reports/kover/report.xml
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ github.token }}
           title: Coverage
           update-comment: true
           min-coverage-overall: 60
