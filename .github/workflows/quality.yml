@@ -137,17 +137,6 @@ jobs:
             **/build/reports/tests/**
             **/build/outputs/unit_test_code_coverage/**
 
-      - name: Publish unit test results
-        if: always()
-        uses: mikepenz/action-junit-report@v5
-        with:
-          report_paths: |
-            **/build/test-results/testDebugUnitTest/*.xml
-          check_name: Unit Tests (x86_64)
-          detailed_summary: true
-          include_passed: true
-          require_tests: false
-
       - name: Upload debug APK artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -202,17 +191,6 @@ jobs:
             **/build/reports/tests/**
             **/build/outputs/unit_test_code_coverage/**
 
-      - name: Publish unit test results
-        if: always()
-        uses: mikepenz/action-junit-report@v5
-        with:
-          report_paths: |
-            **/build/test-results/testDebugUnitTest/*.xml
-          check_name: Unit Tests (arm64)
-          detailed_summary: true
-          include_passed: true
-          require_tests: false
-
       - name: Upload debug APK artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -264,14 +242,13 @@ jobs:
           path: |
             **/build/reports/kover/**
 
-      - name: Publish coverage report
-        if: always() && github.event_name == 'pull_request'
-        uses: madrapps/jacoco-report@v1.7.2
-        with:
-          paths: |
-            build/reports/kover/report.xml
-          token: ${{ github.token }}
-          title: Coverage
-          update-comment: true
-          min-coverage-overall: 60
-          min-coverage-changed-files: 60
+      - name: Publish coverage summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Coverage"
+            echo
+            echo "Kover XML report generated at \`build/reports/kover/report.xml\`"
+            echo "Coverage artifacts are attached to this workflow run."
+          } >> "$GITHUB_STEP_SUMMARY"

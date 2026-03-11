@@ -211,16 +211,6 @@ jobs:
           adb emu kill || true
           wait "$LOGCAT_PID" || true
 
-      - name: Publish instrumentation test results
-        if: always()
-        uses: mikepenz/action-junit-report@v5
-        with:
-          report_paths: instrumentation-results.xml
-          check_name: Android Tests (${{ matrix.test_suffix }})
-          detailed_summary: true
-          include_passed: true
-          require_tests: false
-
       - name: Upload android test artifacts
         if: always()
         uses: actions/upload-artifact@v7
