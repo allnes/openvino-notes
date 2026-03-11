@@ -14,26 +14,5 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Detect dependency graph support
-        id: dependency-graph
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const { data } = await github.request("GET /repos/{owner}/{repo}", {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-            });
-
-            const status = data.security_and_analysis?.dependency_graph?.status ?? "disabled";
-            core.info(`dependency_graph status: ${status}`);
-            core.setOutput("enabled", status === "enabled" ? "true" : "false");
-
       - name: Review dependency changes
-        if: steps.dependency-graph.outputs.enabled == 'true'
         uses: actions/dependency-review-action@v4
-
-      - name: Skip dependency review when dependency graph is disabled
-        if: steps.dependency-graph.outputs.enabled != 'true'
-        shell: bash
-        run: |
-          echo "Dependency Review skipped: repository dependency graph is disabled." >> "$GITHUB_STEP_SUMMARY"
