@@ -122,7 +122,7 @@ jobs:
           disable-animations: true
           emulator-options: ${{ matrix.emulator_options }}
           script: |
-            set -euo pipefail
+            set -eu
 
             APK_DIR="build-artifacts/${{ matrix.build_name }}"
             APP_APK="$(find "$APK_DIR" -name 'app-debug.apk' | head -n 1)"
