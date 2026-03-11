@@ -89,8 +89,6 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
-      checks: write
-      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -213,12 +211,3 @@ jobs:
             instrumentation.txt
             instrumentation-results.xml
             logcat.txt
-
-      - name: Publish instrumentation report
-        if: always()
-        uses: mikepenz/action-junit-report@v6
-        with:
-          check_name: Android Tests (${{ matrix.test_suffix }})
-          report_paths: instrumentation-results.xml
-          require_tests: true
-          fail_on_failure: true

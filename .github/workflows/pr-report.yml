@@ -1,0 +1,70 @@
+name: PR Report
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+permissions:
+  actions: read
+  checks: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  report:
+    name: Report Results To PR
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.pull_requests[0] != null &&
+      github.event.workflow_run.conclusion != 'cancelled'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download workflow artifacts
+        uses: actions/download-artifact@v5
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+          path: pr-artifacts
+
+      - name: List downloaded artifacts
+        shell: bash
+        run: find pr-artifacts -maxdepth 4 -type f | sort
+
+      - name: Publish unit test report
+        if: hashFiles('pr-artifacts/**/build/test-results/testDebugUnitTest/*.xml') != ''
+        uses: mikepenz/action-junit-report@v6
+        with:
+          commit: ${{ github.event.workflow_run.head_sha }}
+          pr_id: ${{ github.event.workflow_run.pull_requests[0].number }}
+          check_name: Unit Tests
+          report_paths: pr-artifacts/**/build/test-results/testDebugUnitTest/*.xml
+          require_tests: true
+          fail_on_failure: true
+
+      - name: Publish instrumentation report
+        if: hashFiles('pr-artifacts/**/instrumentation-results.xml') != ''
+        uses: mikepenz/action-junit-report@v6
+        with:
+          commit: ${{ github.event.workflow_run.head_sha }}
+          pr_id: ${{ github.event.workflow_run.pull_requests[0].number }}
+          check_name: Android Instrumentation
+          report_paths: pr-artifacts/**/instrumentation-results.xml
+          require_tests: true
+          fail_on_failure: true
+
+      - name: Publish coverage report
+        if: hashFiles('pr-artifacts/**/build/reports/kover/*.xml') != ''
+        uses: madrapps/jacoco-report@v1.7.2
+        with:
+          pr-number: ${{ github.event.workflow_run.pull_requests[0].number }}
+          paths: ${{ github.workspace }}/pr-artifacts/**/build/reports/kover/*.xml
+          token: ${{ github.token }}
+          min-coverage-overall: 60
+          min-coverage-changed-files: 60
+          title: Coverage
+          update-comment: true
+          comment-type: both
