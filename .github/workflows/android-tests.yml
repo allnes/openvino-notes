@@ -15,6 +15,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      checks: write
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -157,10 +159,67 @@ jobs:
 
           adb install -r "$APP_APK"
           adb install -r "$TEST_APK"
-          adb shell am instrument -w -r com.itlab.notes.test/androidx.test.runner.AndroidJUnitRunner | tee instrumentation.txt
+          adb shell am instrument -w -m com.itlab.notes.test/androidx.test.runner.AndroidJUnitRunner | tee instrumentation-raw.txt
+
+          python3 - <<'PY'
+          import pathlib
+          import re
+          import xml.etree.ElementTree as ET
+
+          raw = pathlib.Path("instrumentation-raw.txt").read_text()
+          suite = ET.Element("testsuite", name="androidTest", tests="0", failures="0", errors="0", skipped="0")
+          testcase = None
+          tests = failures = 0
+
+          for line in raw.splitlines():
+            line = line.strip()
+            m_class = re.match(r"INSTRUMENTATION_STATUS: class=(.+)", line)
+            m_test = re.match(r"INSTRUMENTATION_STATUS: test=(.+)", line)
+            m_stack = re.match(r"INSTRUMENTATION_STATUS: stack=(.+)", line)
+            m_code = re.match(r"INSTRUMENTATION_STATUS_CODE: (-?\\d+)", line)
+
+            if m_class:
+              current_class = m_class.group(1)
+            elif m_test:
+              current_test = m_test.group(1)
+            elif m_stack:
+              current_stack = m_stack.group(1)
+            elif m_code:
+              code = int(m_code.group(1))
+              if code in (0, -2):
+                tests += 1
+                testcase = ET.SubElement(
+                  suite,
+                  "testcase",
+                  classname=locals().get("current_class", "unknown"),
+                  name=locals().get("current_test", "unknown"),
+                )
+                if code == -2:
+                  failures += 1
+                  failure = ET.SubElement(testcase, "failure", message="Instrumentation failure")
+                  failure.text = locals().get("current_stack", "Unknown instrumentation failure")
+                  current_stack = ""
+
+          suite.set("tests", str(tests))
+          suite.set("failures", str(failures))
+          tree = ET.ElementTree(suite)
+          ET.indent(tree, space="  ")
+          tree.write("instrumentation-results.xml", encoding="utf-8", xml_declaration=True)
+          pathlib.Path("instrumentation.txt").write_text(raw)
+          PY
 
           adb emu kill || true
           wait "$LOGCAT_PID" || true
+
+      - name: Publish instrumentation test results
+        if: always()
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: instrumentation-results.xml
+          check_name: Android Tests (${{ matrix.test_suffix }})
+          detailed_summary: true
+          include_passed: true
+          require_tests: false
 
       - name: Upload android test artifacts
         if: always()
@@ -171,4 +230,5 @@ jobs:
           path: |
             emulator.log
             instrumentation.txt
+            instrumentation-results.xml
             logcat.txt
