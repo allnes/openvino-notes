@@ -79,19 +79,10 @@ jobs:
             **/build/reports/lint-results-*.html
             **/build/reports/lint-results-*.xml
 
-  build-quality:
-    name: Build Quality (${{ matrix.name }})
+  build-quality-x86:
+    name: Build Quality (x86_64)
     needs: quality-foundation
-    strategy:
-      fail-fast: false
-      max-parallel: 2
-      matrix:
-        include:
-          - name: x86_64
-            runs_on: ubuntu-24.04
-          - name: arm64
-            runs_on: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runs_on }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -124,11 +115,44 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: quality-build-reports-${{ matrix.name }}
+          name: quality-build-reports-x86_64
           if-no-files-found: ignore
           path: |
             **/build/reports/tests/**
             **/build/outputs/unit_test_code_coverage/**
+
+  host-compatibility-arm64:
+    name: Host Compatibility (arm64)
+    needs: quality-foundation
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-android-gradle
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          android-api-level: ${{ env.ANDROID_API_LEVEL }}
+          android-build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
+
+      - name: Validate Gradle graph on arm64 host
+        shell: bash
+        run: |
+          ./gradlew \
+            ai:assembleDebug \
+            app:assembleDebug \
+            data:assembleDebug \
+            domain:assembleDebug \
+            ai:testDebugUnitTest \
+            app:testDebugUnitTest \
+            data:testDebugUnitTest \
+            domain:testDebugUnitTest \
+            -m \
+            --stacktrace
 
   coverage:
     name: Coverage

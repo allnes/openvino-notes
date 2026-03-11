@@ -7,7 +7,7 @@ Every pull request runs the full CI stack:
 - `Preflight`
 - `Dependency Review`
 - `Build Quality (x86_64)`
-- `Build Quality (arm64)`
+- `Host Compatibility (arm64)`
 - `Secrets`
 - `CodeQL`
 - `Release`
@@ -44,7 +44,7 @@ The execution graph is staged:
 Inside the reusable workflows, the expensive work is also staged:
 
 - `Preflight`: `Detect Changes` -> `Preflight`
-- `Quality`: `Quality Foundation` -> parallel `Build Quality (x86_64/arm64)` and `Coverage`
+- `Quality`: `Quality Foundation` -> parallel `Build Quality (x86_64)`, `Host Compatibility (arm64)`, and `Coverage`
 - `Release`: `Release Assemble` -> `Release Lint`
 - `Android Tests`: `Managed Device Validation` -> parallel `Android Tests (x86_64/arm64)`
 
@@ -88,7 +88,8 @@ If you touch release behavior or Android UI flows, also run:
 
 ## Runner Policy
 
-- `Build Quality` runs on `ubuntu-24.04` and `ubuntu-24.04-arm`
+- `Build Quality (x86_64)` runs on `ubuntu-24.04`
+- `Host Compatibility (arm64)` runs on `ubuntu-24.04-arm` and validates the Gradle task graph on ARM hosts
 - `Android Tests (x86_64)` run on `ubuntu-24.04` with `x86_64` system images and `testedAbi = "x86_64"`
 - `Android Tests (arm64)` run on `ubuntu-24.04-arm` with `arm64-v8a` system images and `testedAbi = "arm64-v8a"`
 - No CI stage is reserved only for nightly; the same gate set is executed on pull requests
