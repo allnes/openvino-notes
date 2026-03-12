@@ -3,6 +3,7 @@ set -euo pipefail
 
 results_root_dir="${RESULTS_ROOT_DIR:-android-test-results}"
 emulator_suite_name="${EMULATOR_SUITE_NAME:-androidTest}"
+overall_exit_code=0
 
 mapfile -t raw_files < <(find "$results_root_dir" -name 'instrumentation-raw.txt' | sort)
 if [[ "${#raw_files[@]}" -eq 0 ]]; then
@@ -18,4 +19,16 @@ for raw_file in "${raw_files[@]}"; do
     "$result_dir/instrumentation-results.xml" \
     "$result_dir/instrumentation.txt" \
     "${emulator_suite_name}-${build_name}"
+
+  if rg -q 'INSTRUMENTATION_STATUS_CODE: -2|INSTRUMENTATION_FAILED:|FAILURES!!!' "$raw_file"; then
+    echo "Detected instrumentation failure markers in $raw_file"
+    overall_exit_code=1
+  fi
+
+  if rg -q 'tests="0"' "$result_dir/instrumentation-results.xml"; then
+    echo "Detected zero executed tests in $result_dir/instrumentation-results.xml"
+    overall_exit_code=1
+  fi
 done
+
+exit "$overall_exit_code"
