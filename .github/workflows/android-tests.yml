@@ -30,12 +30,7 @@ jobs:
 
       - name: Validate debug APK tasks
         shell: bash
-        run: |
-          ./gradlew \
-            app:assembleDebug \
-            app:assembleDebugAndroidTest \
-            -m \
-            --stacktrace
+        run: bash .github/scripts/android/validate_debug_apk_tasks.sh
 
   android-tests:
     name: Android Tests (build=${{ matrix.build_name }}, emulator=${{ matrix.emulator_name }})
@@ -102,15 +97,7 @@ jobs:
       - name: Enable KVM when available
         if: runner.os == 'Linux'
         shell: bash
-        run: |
-          if [ -e /dev/kvm ]; then
-            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-              | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-            sudo udevadm control --reload-rules
-            sudo udevadm trigger --name-match=kvm
-          else
-            echo "/dev/kvm is not available on this runner"
-          fi
+        run: bash .github/scripts/android/enable_kvm_if_available.sh
 
       - name: Run instrumentation on emulator
         uses: reactivecircus/android-emulator-runner@v2
@@ -122,129 +109,15 @@ jobs:
           disable-animations: true
           emulator-boot-timeout: 900
           emulator-options: ${{ matrix.emulator_options }}
-          script: |
-            set -eu
-
-            APK_DIR="build-artifacts/${{ matrix.build_name }}"
-            export ANDROID_SERIAL="emulator-5554"
-            APP_APK="$(find "$APK_DIR" -name 'app-debug.apk' | head -n 1)"
-            TEST_APK="$(find "$APK_DIR" -name 'app-debug-androidTest.apk' | head -n 1)"
-
-            if [ -z "$APP_APK" ] || [ -z "$TEST_APK" ]; then
-              echo "Missing APK artifacts in $APK_DIR"
-              exit 1
-            fi
-
-            adb_retry() {
-              attempt=1
-              while [ "$attempt" -le 5 ]; do
-                if adb "$@"; then
-                  return 0
-                fi
-
-                echo "adb command failed on attempt $attempt: adb $*"
-                sleep 5
-                adb start-server || true
-                adb wait-for-device || true
-                attempt=$((attempt + 1))
-              done
-
-              adb "$@"
-            }
-
-            wait_for_boot_completed() {
-              attempt=1
-              while [ "$attempt" -le 24 ]; do
-                if adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' | grep -q '^1$'; then
-                  return 0
-                fi
-
-                echo "Waiting for sys.boot_completed (attempt $attempt/24)"
-                sleep 5
-                adb wait-for-device || true
-                attempt=$((attempt + 1))
-              done
-
-              echo "Timed out waiting for sys.boot_completed"
-              adb shell getprop sys.boot_completed || true
-              return 1
-            }
-
-            adb start-server
-            adb wait-for-device
-            wait_for_boot_completed
-            adb shell input keyevent 82 || true
-            adb_retry shell settings put global window_animation_scale 0 || true
-            adb_retry shell settings put global transition_animation_scale 0 || true
-            adb_retry shell settings put global animator_duration_scale 0 || true
-            adb_retry logcat -c
-            adb_retry install -r "$APP_APK"
-            adb_retry install -r "$TEST_APK"
-
-            set +e
-            adb_retry shell am instrument -w com.itlab.notes.test/androidx.test.runner.AndroidJUnitRunner | tee instrumentation-raw.txt
-            instrumentation_exit_code=$?
-            set -e
-
-            adb logcat -d > logcat.txt || true
-            exit "$instrumentation_exit_code"
+          script: bash .github/scripts/android/run_emulator_instrumentation.sh
+        env:
+          APK_DIR: build-artifacts/${{ matrix.build_name }}
+          ANDROID_SERIAL: emulator-5554
 
       - name: Convert instrumentation output to JUnit
         if: always()
         shell: bash
-        run: |
-          python3 - <<'PY'
-          import pathlib
-          import re
-          import xml.etree.ElementTree as ET
-
-          raw_path = pathlib.Path("instrumentation-raw.txt")
-          if not raw_path.exists():
-            raise SystemExit("instrumentation-raw.txt was not generated")
-
-          raw = raw_path.read_text()
-          suite = ET.Element("testsuite", name="androidTest", tests="0", failures="0", errors="0", skipped="0")
-          tests = failures = 0
-          current_class = "unknown"
-          current_test = "unknown"
-          current_stack = ""
-
-          for line in raw.splitlines():
-            line = line.strip()
-            m_class = re.match(r"INSTRUMENTATION_STATUS: class=(.+)", line)
-            m_test = re.match(r"INSTRUMENTATION_STATUS: test=(.+)", line)
-            m_stack = re.match(r"INSTRUMENTATION_STATUS: stack=(.+)", line)
-            m_code = re.match(r"INSTRUMENTATION_STATUS_CODE: (-?\\d+)", line)
-
-            if m_class:
-              current_class = m_class.group(1)
-            elif m_test:
-              current_test = m_test.group(1)
-            elif m_stack:
-              current_stack = m_stack.group(1)
-            elif m_code:
-              code = int(m_code.group(1))
-              if code in (0, -2):
-                tests += 1
-                testcase = ET.SubElement(
-                  suite,
-                  "testcase",
-                  classname=current_class,
-                  name=current_test,
-                )
-                if code == -2:
-                  failures += 1
-                  failure = ET.SubElement(testcase, "failure", message="Instrumentation failure")
-                  failure.text = current_stack or "Unknown instrumentation failure"
-                  current_stack = ""
-
-          suite.set("tests", str(tests))
-          suite.set("failures", str(failures))
-          tree = ET.ElementTree(suite)
-          ET.indent(tree, space="  ")
-          tree.write("instrumentation-results.xml", encoding="utf-8", xml_declaration=True)
-          pathlib.Path("instrumentation.txt").write_text(raw)
-          PY
+        run: python3 .github/scripts/android/convert_instrumentation_to_junit.py
 
       - name: Upload android test artifacts
         if: always()

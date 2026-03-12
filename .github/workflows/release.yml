@@ -28,13 +28,7 @@ jobs:
 
       - name: Assemble release variants
         shell: bash
-        run: |
-          ./gradlew \
-            ai:assembleRelease \
-            app:assembleRelease \
-            data:assembleRelease \
-            domain:assembleRelease \
-            --stacktrace
+        run: bash .github/scripts/release/assemble_release.sh
 
       - name: Upload release build artifacts
         if: always()
@@ -66,13 +60,7 @@ jobs:
 
       - name: Lint release variants
         shell: bash
-        run: |
-          ./gradlew \
-            ai:lintRelease \
-            app:lintRelease \
-            data:lintRelease \
-            domain:lintRelease \
-            --stacktrace
+        run: bash .github/scripts/release/lint_release.sh
 
       - name: Upload release artifacts
         if: always()

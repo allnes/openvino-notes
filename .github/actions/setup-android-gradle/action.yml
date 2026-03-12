@@ -41,19 +41,9 @@ runs:
 
     - name: Install Android SDK packages
       shell: bash
-      run: |
-        set +o pipefail
-        yes | sdkmanager --licenses >/dev/null
-        set -o pipefail
-
-        packages=(
-          "platforms;android-${{ inputs.android-api-level }}"
-          "build-tools;${{ inputs.android-build-tools }}"
-        )
-
-        if [ "${{ inputs.install-system-image }}" = "true" ] && [ -n "${{ inputs.android-system-image }}" ]; then
-          packages+=("emulator")
-          packages+=("${{ inputs.android-system-image }}")
-        fi
-
-        sdkmanager "${packages[@]}"
+      env:
+        ANDROID_API_LEVEL: ${{ inputs.android-api-level }}
+        ANDROID_BUILD_TOOLS: ${{ inputs.android-build-tools }}
+        INSTALL_SYSTEM_IMAGE: ${{ inputs.install-system-image }}
+        ANDROID_SYSTEM_IMAGE: ${{ inputs.android-system-image }}
+      run: bash "$GITHUB_ACTION_PATH/../../scripts/setup/install_android_sdk_packages.sh"

@@ -32,7 +32,7 @@ jobs:
 
       - name: List downloaded artifacts
         shell: bash
-        run: find pr-artifacts -maxdepth 4 -type f | sort
+        run: bash .github/scripts/pr/list_downloaded_artifacts.sh pr-artifacts
 
       - name: Publish unit test report
         if: hashFiles('pr-artifacts/**/build/test-results/testDebugUnitTest/*.xml') != ''

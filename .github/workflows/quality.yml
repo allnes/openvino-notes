@@ -31,27 +31,12 @@ jobs:
 
       - name: Format, static analysis, and lint
         shell: bash
-        run: |
-          ./gradlew \
-            ktlintCheck \
-            detekt \
-            ai:lintDebug \
-            app:lintDebug \
-            data:lintDebug \
-            domain:lintDebug \
-            --stacktrace
+        run: bash .github/scripts/quality/run_foundation.sh
 
       - name: Publish lint and static analysis summary
         if: always()
         shell: bash
-        run: |
-          {
-            echo "## Quality Foundation"
-            echo
-            echo "- ktlint, detekt, and Android lint executed"
-            echo "- Detekt findings are uploaded to Code Scanning"
-            echo "- Lint XML/HTML reports are attached as workflow artifacts"
-          } >> "$GITHUB_STEP_SUMMARY"
+        run: bash .github/scripts/quality/write_foundation_summary.sh
 
       - name: Upload detekt SARIF for ai
         if: always() && hashFiles('ai/build/reports/detekt/detekt.sarif') != ''
@@ -113,18 +98,7 @@ jobs:
 
       - name: Debug build and unit tests
         shell: bash
-        run: |
-          ./gradlew \
-            ai:assembleDebug \
-            app:assembleDebug \
-            app:assembleDebugAndroidTest \
-            data:assembleDebug \
-            domain:assembleDebug \
-            ai:testDebugUnitTest \
-            app:testDebugUnitTest \
-            data:testDebugUnitTest \
-            domain:testDebugUnitTest \
-            --stacktrace
+        run: bash .github/scripts/quality/run_debug_build_and_unit_tests.sh
 
       - name: Upload quality artifacts
         if: always()
@@ -167,18 +141,7 @@ jobs:
 
       - name: Debug build and unit tests
         shell: bash
-        run: |
-          ./gradlew \
-            ai:assembleDebug \
-            app:assembleDebug \
-            app:assembleDebugAndroidTest \
-            data:assembleDebug \
-            domain:assembleDebug \
-            ai:testDebugUnitTest \
-            app:testDebugUnitTest \
-            data:testDebugUnitTest \
-            domain:testDebugUnitTest \
-            --stacktrace
+        run: bash .github/scripts/quality/run_debug_build_and_unit_tests.sh
 
       - name: Upload quality artifacts
         if: always()
@@ -223,15 +186,7 @@ jobs:
 
       - name: Coverage reports and gate
         shell: bash
-        run: |
-          ./gradlew \
-            ai:testDebugUnitTest \
-            app:testDebugUnitTest \
-            data:testDebugUnitTest \
-            domain:testDebugUnitTest \
-            koverXmlReport \
-            koverVerify \
-            --stacktrace
+        run: bash .github/scripts/quality/run_coverage.sh
 
       - name: Upload coverage artifacts
         if: always()
@@ -245,10 +200,4 @@ jobs:
       - name: Publish coverage summary
         if: always()
         shell: bash
-        run: |
-          {
-            echo "## Coverage"
-            echo
-            echo "Kover XML report generated at \`build/reports/kover/report.xml\`"
-            echo "Coverage artifacts are attached to this workflow run."
-          } >> "$GITHUB_STEP_SUMMARY"
+        run: bash .github/scripts/quality/write_coverage_summary.sh

@@ -36,49 +36,13 @@ jobs:
       - name: Classify changes
         id: classify
         shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="${{ github.event.pull_request.base.sha }}"
-            HEAD="${{ github.event.pull_request.head.sha }}"
-            CHANGED="$(git diff --name-only "$BASE" "$HEAD")"
-          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
-            CHANGED="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
-          else
-            CHANGED="$(git show --name-only --pretty='' "${{ github.sha }}")"
-          fi
-
-          CLEAN_CHANGED="$(printf '%s\n' "$CHANGED" | sed '/^$/d')"
-
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            RUN_ANDROID_TESTS="true"
-            RUN_RELEASE="true"
-            RUN_CODEQL="true"
-          else
-            if printf '%s\n' "$CLEAN_CHANGED" | grep -E '^(app/|ai/|.*/src/androidTest/|.*/src/main/|build.gradle.kts|settings.gradle.kts|gradle/|.github/workflows/)' >/dev/null; then
-              RUN_ANDROID_TESTS="true"
-              RUN_RELEASE="true"
-            else
-              RUN_ANDROID_TESTS="false"
-              RUN_RELEASE="false"
-            fi
-
-            if printf '%s\n' "$CLEAN_CHANGED" | grep -E '^(app/|ai/|data/|domain/|build.gradle.kts|settings.gradle.kts|gradle/|.github/workflows/)' >/dev/null; then
-              RUN_CODEQL="true"
-            else
-              RUN_CODEQL="false"
-            fi
-          fi
-
-          {
-            echo "run_android_tests=$RUN_ANDROID_TESTS"
-            echo "run_release=$RUN_RELEASE"
-            echo "run_codeql=$RUN_CODEQL"
-            echo "changed_paths<<__EOF__"
-            if [ -n "$CLEAN_CHANGED" ]; then
-              printf '%s\n' "$CLEAN_CHANGED"
-            fi
-            echo "__EOF__"
-          } >> "$GITHUB_OUTPUT"
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+          BEFORE_SHA: ${{ github.event.before || '' }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: bash .github/scripts/preflight/classify_changes.sh
 
   preflight-summary:
     name: Preflight
@@ -89,23 +53,10 @@ jobs:
     steps:
       - name: Summarize preflight
         shell: bash
-        run: |
-          FILE_COUNT="$(printf '%s\n' "${{ needs.detect-changes.outputs.changed_paths }}" | sed '/^$/d' | wc -l | tr -d ' ')"
-          {
-            echo "## Preflight"
-            echo
-            echo "- Event: \`${{ github.event_name }}\`"
-            echo "- Changed files: \`${FILE_COUNT}\`"
-            echo "- Run release: \`${{ needs.detect-changes.outputs.run_release }}\`"
-            echo "- Run CodeQL: \`${{ needs.detect-changes.outputs.run_codeql }}\`"
-            echo "- Run Android tests: \`${{ needs.detect-changes.outputs.run_android_tests }}\`"
-            echo
-            echo "### Changed Paths"
-            echo '```text'
-            if [ -n "${{ needs.detect-changes.outputs.changed_paths }}" ]; then
-              printf '%s\n' "${{ needs.detect-changes.outputs.changed_paths }}"
-            else
-              echo "(none)"
-            fi
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_RELEASE: ${{ needs.detect-changes.outputs.run_release }}
+          RUN_CODEQL: ${{ needs.detect-changes.outputs.run_codeql }}
+          RUN_ANDROID_TESTS: ${{ needs.detect-changes.outputs.run_android_tests }}
+          CHANGED_PATHS: ${{ needs.detect-changes.outputs.changed_paths }}
+        run: bash .github/scripts/preflight/write_summary.sh
