@@ -5,13 +5,18 @@ results_root_dir="${RESULTS_ROOT_DIR:-android-test-results}"
 emulator_suite_name="${EMULATOR_SUITE_NAME:-androidTest}"
 overall_exit_code=0
 
-mapfile -t raw_files < <(find "$results_root_dir" -name 'instrumentation-raw.txt' | sort)
-if [[ "${#raw_files[@]}" -eq 0 ]]; then
+if [[ ! -d "$results_root_dir" ]]; then
+  echo "Results directory does not exist: $results_root_dir"
+  exit 1
+fi
+
+raw_files="$(find "$results_root_dir" -name 'instrumentation-raw.txt' | sort)"
+if [[ -z "$raw_files" ]]; then
   echo "No instrumentation-raw.txt files found in $results_root_dir"
   exit 1
 fi
 
-for raw_file in "${raw_files[@]}"; do
+while IFS= read -r raw_file; do
   result_dir="$(dirname "$raw_file")"
   build_name="$(basename "$result_dir")"
   python3 .github/scripts/android/convert_instrumentation_to_junit.py \
@@ -29,6 +34,6 @@ for raw_file in "${raw_files[@]}"; do
     echo "Detected zero executed tests in $result_dir/instrumentation-results.xml"
     overall_exit_code=1
   fi
-done
+done <<< "$raw_files"
 
 exit "$overall_exit_code"
