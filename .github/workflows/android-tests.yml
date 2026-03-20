@@ -68,6 +68,12 @@ jobs:
         shell: bash
         run: bash .github/scripts/android/enable_kvm_if_available.sh
 
+      - name: Preinstall emulator system image
+        shell: bash
+        env:
+          ANDROID_SYSTEM_IMAGE_PACKAGE: system-images;android-${{ matrix.api_level }};${{ matrix.target }};${{ matrix.arch }}
+        run: bash .github/scripts/android/install_system_image_with_retry.sh
+
       - name: Run instrumentation on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:

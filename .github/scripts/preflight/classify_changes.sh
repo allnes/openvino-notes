@@ -16,11 +16,20 @@ else
 fi
 
 clean_changed="$(printf '%s\n' "$changed" | sed '/^$/d')"
+kotlin_version="$(sed -nE 's/^kotlin = "([^"]+)"/\1/p' gradle/libs.versions.toml | head -n1)"
+codeql_supported_kotlin="true"
+
+if [[ -n "$kotlin_version" ]]; then
+  highest_kotlin="$(printf '%s\n%s\n' "$kotlin_version" "2.3.20" | sort -V | tail -n1)"
+  if [[ "$highest_kotlin" == "$kotlin_version" ]]; then
+    codeql_supported_kotlin="false"
+  fi
+fi
 
 if [[ "$event_name" == "pull_request" ]]; then
   run_android_tests="true"
   run_release="true"
-  run_codeql="true"
+  run_codeql="$codeql_supported_kotlin"
 else
   if printf '%s\n' "$clean_changed" | grep -E '^(app/|ai/|.*/src/androidTest/|.*/src/main/|build.gradle.kts|settings.gradle.kts|gradle/|.github/workflows/)' >/dev/null; then
     run_android_tests="true"
@@ -31,7 +40,7 @@ else
   fi
 
   if printf '%s\n' "$clean_changed" | grep -E '^(app/|ai/|data/|domain/|build.gradle.kts|settings.gradle.kts|gradle/|.github/workflows/)' >/dev/null; then
-    run_codeql="true"
+    run_codeql="$codeql_supported_kotlin"
   else
     run_codeql="false"
   fi
