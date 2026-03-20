@@ -13,3 +13,5 @@
 .externalNativeBuild
 .cxx
 local.properties
+instrumentation-raw.txt
+logcat.txt
