@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+summary_file="$(mktemp)"
+trap 'rm -f "$summary_file"' EXIT
+
+python3 .github/scripts/quality/build_coverage_summary.py . "$summary_file"
+
 {
-  echo "## Coverage"
+  cat "$summary_file"
   echo
-  echo "Kover XML report generated at \`build/reports/kover/report.xml\`"
   echo "Coverage artifacts are attached to this workflow run."
 } >> "${GITHUB_STEP_SUMMARY:?}"
