@@ -30,7 +30,14 @@ jobs:
 
       - name: Coverage reports and gate
         shell: bash
-        run: bash .github/scripts/quality/run_coverage.sh
+        run: |
+          ./gradlew \
+            ai:testDebugUnitTest \
+            app:testDebugUnitTest \
+            data:testDebugUnitTest \
+            domain:testDebugUnitTest \
+            koverXmlReport \
+            --stacktrace
 
       - name: Prepare coverage artifacts
         if: always()
