@@ -85,17 +85,21 @@ def main() -> int:
         lines.extend(
             [
                 "",
-                "| Module | Line Coverage | Instruction Coverage |",
-                "| --- | ---: | ---: |",
+                "| Module | Line Coverage | Line Covered | Line Total | Instruction Coverage | Instruction Covered | Instruction Total |",
+                "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
             ]
         )
 
         for module, counts in sorted(rows):
             line_covered, line_missed = counts.get("LINE", (0, 0))
             instruction_covered, instruction_missed = counts.get("INSTRUCTION", (0, 0))
+            line_total = line_covered + line_missed
+            instruction_total = instruction_covered + instruction_missed
             lines.append(
                 f"| `{module}` | {format_ratio(line_covered, line_missed)} | "
-                f"{format_ratio(instruction_covered, instruction_missed)} |"
+                f"{line_covered} | {line_total} | "
+                f"{format_ratio(instruction_covered, instruction_missed)} | "
+                f"{instruction_covered} | {instruction_total} |"
             )
     else:
         lines.extend(["", "- No Kover XML reports found"])
