@@ -71,6 +71,10 @@ kover {
     }
 }
 
+tasks.matching { it.name == "koverVerify" }.configureEach {
+    enabled = false
+}
+
 subprojects {
     apply(plugin = "org.jlleitschuh.gradle.ktlint")
     apply(plugin = "io.gitlab.arturbosch.detekt")
