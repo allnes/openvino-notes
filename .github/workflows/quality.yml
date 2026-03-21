@@ -255,7 +255,7 @@ jobs:
           name: quality-coverage-reports
           if-no-files-found: ignore
           path: |
-            **/build/reports/kover/**
+            build/reports/kover/**
 
       - name: Publish coverage summary
         if: always()

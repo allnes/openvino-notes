@@ -6,7 +6,7 @@
         {
           "id": "jacoco",
           "metric": "line",
-          "pattern": "pr-artifacts/build/reports/kover/report.xml"
+          "pattern": "**/build/reports/kover/report.xml"
         }
       ]
     },
@@ -16,7 +16,7 @@
         {
           "id": "jacoco",
           "metric": "instruction",
-          "pattern": "pr-artifacts/build/reports/kover/report.xml"
+          "pattern": "**/build/reports/kover/report.xml"
         }
       ]
     }
