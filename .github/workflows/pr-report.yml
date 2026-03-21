@@ -37,34 +37,6 @@ jobs:
         shell: bash
         run: bash .github/scripts/pr/list_downloaded_artifacts.sh pr-artifacts
 
-      - name: Publish unit test report
-        if: hashFiles('pr-artifacts/**/build/test-results/testDebugUnitTest/*.xml') != ''
-        continue-on-error: true
-        uses: mikepenz/action-junit-report@v6.3.1
-        with:
-          commit: ${{ github.event.workflow_run.head_sha }}
-          pr_id: ${{ github.event.workflow_run.pull_requests[0].number }}
-          check_name: Unit Tests
-          report_paths: pr-artifacts/**/build/test-results/testDebugUnitTest/*.xml
-          require_tests: true
-          fail_on_failure: false
-          update_check: true
-          detailed_summary: true
-
-      - name: Publish instrumentation report
-        if: hashFiles('pr-artifacts/**/instrumentation-results.xml') != ''
-        continue-on-error: true
-        uses: mikepenz/action-junit-report@v6.3.1
-        with:
-          commit: ${{ github.event.workflow_run.head_sha }}
-          pr_id: ${{ github.event.workflow_run.pull_requests[0].number }}
-          check_name: Android Instrumentation
-          report_paths: pr-artifacts/**/instrumentation-results.xml
-          require_tests: true
-          fail_on_failure: false
-          update_check: true
-          detailed_summary: true
-
       - name: Load quality monitor coverage config
         if: hashFiles('pr-artifacts/aggregate/report.xml') != ''
         id: quality-monitor-config
@@ -197,6 +169,7 @@ jobs:
           number: ${{ github.event.workflow_run.pull_requests[0].number }}
           header: coverage-details
           path: coverage-details.md
+<<<<<<< HEAD
 
       - name: Build uncovered coverage comment
         if: hashFiles('pr-artifacts/modules/*/report.xml') != ''
@@ -231,3 +204,5 @@ jobs:
           number: ${{ github.event.workflow_run.pull_requests[0].number }}
           header: ci-quality-overview
           path: pr-summary.md
+=======
+>>>>>>> 1bd3931 (ci: run coverage-only reporting from quality monitor)
