@@ -19,7 +19,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
 
       - name: Set up toolchain
         uses: ./.github/actions/setup-android-gradle
@@ -55,10 +55,10 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v8.0.1
         with:
           pattern: debug-apks-*
           path: build-artifacts
@@ -75,7 +75,7 @@ jobs:
         run: bash .github/scripts/android/install_system_image_with_retry.sh
 
       - name: Run instrumentation on emulator
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@v2.37.0
         with:
           api-level: ${{ matrix.api_level }}
           target: ${{ matrix.target }}
@@ -100,7 +100,7 @@ jobs:
 
       - name: Upload android test artifacts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.0
         with:
           name: android-test-reports-${{ matrix.test_suffix }}
           if-no-files-found: ignore
