@@ -105,11 +105,12 @@ jobs:
         if: hashFiles('pr-artifacts/modules/*/report.xml') != ''
         continue-on-error: true
         uses: uhafner/autograding-github-action@v6.0.1
+        env:
+          GITHUB_SHA: ${{ github.event.workflow_run.head_sha }}
         with:
           github-token: ${{ github.token }}
-          sha: ${{ github.event.workflow_run.head_sha }}
           checks-name: Coverage Annotations
-          max-coverage-comments: 200
+          max-coverage-annotations: 200
           config: ${{ steps.coverage-annotations-config.outputs.json }}
 
       - name: Build coverage details comment
