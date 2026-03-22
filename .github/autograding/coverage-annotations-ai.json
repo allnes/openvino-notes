@@ -2,6 +2,7 @@
   "coverage": [
     {
       "name": "AI Coverage Annotations",
+      "sourcePath": "ai/src/main/java",
       "maxScore": 100,
       "coveredPercentageImpact": 1,
       "missedPercentageImpact": 0,
