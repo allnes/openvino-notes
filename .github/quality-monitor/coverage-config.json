@@ -6,7 +6,7 @@
         {
           "id": "jacoco",
           "metric": "line",
-          "pattern": "**/report.xml"
+          "pattern": "**/aggregate/report.xml"
         }
       ]
     },
@@ -16,7 +16,7 @@
         {
           "id": "jacoco",
           "metric": "instruction",
-          "pattern": "**/report.xml"
+          "pattern": "**/aggregate/report.xml"
         }
       ]
     }

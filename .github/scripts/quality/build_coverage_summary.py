@@ -7,6 +7,13 @@ from pathlib import Path
 
 
 MetricCounts = dict[str, tuple[int, int]]
+METRICS: list[tuple[str, str]] = [
+    ("LINE", "Line"),
+    ("INSTRUCTION", "Instruction"),
+    ("BRANCH", "Branch"),
+    ("METHOD", "Method"),
+    ("CLASS", "Class"),
+]
 
 
 def read_counters(report: Path) -> MetricCounts | None:
@@ -31,8 +38,50 @@ def read_counters(report: Path) -> MetricCounts | None:
 def format_ratio(covered: int, missed: int) -> str:
     total = covered + missed
     if total == 0:
-        return "0.00%"
+        return "n/a"
     return f"{covered / total * 100:.2f}%"
+
+
+def format_metric_cell(counts: MetricCounts, metric: str) -> str:
+    covered, missed = counts.get(metric, (0, 0))
+    total = covered + missed
+    if total == 0:
+        return "n/a (0/0)"
+    return f"{format_ratio(covered, missed)} ({covered}/{total})"
+
+
+def discover_reports(reports_root: Path) -> tuple[MetricCounts | None, list[tuple[str, MetricCounts]]]:
+    aggregate_report = reports_root / "aggregate" / "report.xml"
+    if aggregate_report.exists():
+        aggregate_counts = read_counters(aggregate_report)
+        module_rows: list[tuple[str, MetricCounts]] = []
+        for report in sorted((reports_root / "modules").glob("*/report.xml")):
+            counts = read_counters(report)
+            if counts is None:
+                continue
+            module_rows.append((report.parent.name, counts))
+        return aggregate_counts, module_rows
+
+    aggregate_counts = None
+    module_rows = []
+    fallback_rows = []
+
+    for report in sorted(reports_root.glob("**/build/reports/kover/report.xml")):
+        counts = read_counters(report)
+        if counts is None:
+            continue
+
+        rel = report.relative_to(reports_root)
+        parts = rel.parts
+
+        if parts == ("build", "reports", "kover", "report.xml"):
+            aggregate_counts = counts
+        elif len(parts) >= 5 and parts[1:5] == ("build", "reports", "kover", "report.xml"):
+            module_rows.append((parts[0], counts))
+        else:
+            fallback_rows.append((str(rel.parent), counts))
+
+    return aggregate_counts, module_rows or fallback_rows
 
 
 def main() -> int:
@@ -43,65 +92,59 @@ def main() -> int:
     reports_root = Path(sys.argv[1])
     output_file = Path(sys.argv[2])
 
-    module_rows: list[tuple[str, MetricCounts]] = []
-    fallback_rows: list[tuple[str, MetricCounts]] = []
+    aggregate_counts, rows = discover_reports(reports_root)
 
-    for report in sorted(reports_root.glob("**/build/reports/kover/report.xml")):
-        counts = read_counters(report)
-        if counts is None:
-            continue
-
-        rel = report.relative_to(reports_root)
-        parts = rel.parts
-
-        if len(parts) >= 5 and parts[1:5] == ("build", "reports", "kover", "report.xml"):
-            module_rows.append((parts[0], counts))
-        else:
-            fallback_rows.append((str(rel.parent), counts))
-
-    rows = module_rows or fallback_rows
-    total_line_covered = sum(counts.get("LINE", (0, 0))[0] for _, counts in rows)
-    total_line_missed = sum(counts.get("LINE", (0, 0))[1] for _, counts in rows)
-    total_instruction_covered = sum(counts.get("INSTRUCTION", (0, 0))[0] for _, counts in rows)
-    total_instruction_missed = sum(counts.get("INSTRUCTION", (0, 0))[1] for _, counts in rows)
-    total_lines = total_line_covered + total_line_missed
-    total_instructions = total_instruction_covered + total_instruction_missed
+    if aggregate_counts is None and rows:
+        aggregate_counts = {}
+        for metric, _ in METRICS:
+            covered = sum(counts.get(metric, (0, 0))[0] for _, counts in rows)
+            missed = sum(counts.get(metric, (0, 0))[1] for _, counts in rows)
+            aggregate_counts[metric] = (covered, missed)
 
     lines = [
-        "## Coverage",
+        "## Coverage Details",
         "",
-        (
-            f"- Overall line coverage: {format_ratio(total_line_covered, total_line_missed)} "
-            f"({total_line_covered} covered / {total_lines} total)"
-        ),
-        (
-            f"- Overall instruction coverage: "
-            f"{format_ratio(total_instruction_covered, total_instruction_missed)} "
-            f"({total_instruction_covered} covered / {total_instructions} total)"
-        ),
     ]
+
+    if aggregate_counts is not None:
+        lines.extend(
+            [
+                "",
+                "### Overall",
+                "",
+                "| Metric | Coverage | Covered | Missed | Total |",
+                "| --- | ---: | ---: | ---: | ---: |",
+            ]
+        )
+
+        for metric, label in METRICS:
+            covered, missed = aggregate_counts.get(metric, (0, 0))
+            total = covered + missed
+            lines.append(
+                f"| {label} | {format_ratio(covered, missed)} | {covered} | {missed} | {total} |"
+            )
 
     if rows:
         lines.extend(
             [
                 "",
-                "| Module | Line Coverage | Line Covered | Line Total | Instruction Coverage | Instruction Covered | Instruction Total |",
-                "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+                "### By Module",
+                "",
+                "| Module | Line | Instruction | Branch | Method | Class |",
+                "| --- | ---: | ---: | ---: | ---: | ---: |",
             ]
         )
 
         for module, counts in sorted(rows):
-            line_covered, line_missed = counts.get("LINE", (0, 0))
-            instruction_covered, instruction_missed = counts.get("INSTRUCTION", (0, 0))
-            line_total = line_covered + line_missed
-            instruction_total = instruction_covered + instruction_missed
             lines.append(
-                f"| `{module}` | {format_ratio(line_covered, line_missed)} | "
-                f"{line_covered} | {line_total} | "
-                f"{format_ratio(instruction_covered, instruction_missed)} | "
-                f"{instruction_covered} | {instruction_total} |"
+                f"| `{module}` | "
+                f"{format_metric_cell(counts, 'LINE')} | "
+                f"{format_metric_cell(counts, 'INSTRUCTION')} | "
+                f"{format_metric_cell(counts, 'BRANCH')} | "
+                f"{format_metric_cell(counts, 'METHOD')} | "
+                f"{format_metric_cell(counts, 'CLASS')} |"
             )
-    else:
+    elif aggregate_counts is None:
         lines.extend(["", "- No Kover XML reports found"])
 
     output_file.write_text("\n".join(lines) + "\n", encoding="utf-8")

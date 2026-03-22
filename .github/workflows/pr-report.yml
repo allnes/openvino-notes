@@ -66,7 +66,7 @@ jobs:
           detailed_summary: true
 
       - name: Load quality monitor coverage config
-        if: hashFiles('pr-artifacts/report.xml') != ''
+        if: hashFiles('pr-artifacts/coverage-artifacts/aggregate/report.xml') != ''
         id: quality-monitor-config
         shell: bash
         run: |
@@ -77,7 +77,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Publish coverage report
-        if: hashFiles('pr-artifacts/report.xml') != ''
+        if: hashFiles('pr-artifacts/coverage-artifacts/aggregate/report.xml') != ''
         continue-on-error: true
         uses: uhafner/quality-monitor@v4.7.1
         with:
@@ -89,6 +89,22 @@ jobs:
           show-headers: true
           skip-annotations: true
           config: ${{ steps.quality-monitor-config.outputs.json }}
+
+      - name: Build coverage details comment
+        if: hashFiles('pr-artifacts/coverage-artifacts/aggregate/report.xml') != ''
+        shell: bash
+        run: |
+          python3 .github/scripts/quality/build_coverage_summary.py \
+            pr-artifacts/coverage-artifacts \
+            coverage-details.md
+
+      - name: Publish coverage details comment
+        if: hashFiles('pr-artifacts/coverage-artifacts/aggregate/report.xml') != ''
+        uses: marocchino/sticky-pull-request-comment@v3.0.2
+        with:
+          number: ${{ github.event.workflow_run.pull_requests[0].number }}
+          header: coverage-details
+          path: coverage-details.md
 
       - name: Build PR summary
         shell: bash
