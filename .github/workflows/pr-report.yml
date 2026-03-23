@@ -169,7 +169,6 @@ jobs:
           number: ${{ github.event.workflow_run.pull_requests[0].number }}
           header: coverage-details
           path: coverage-details.md
-<<<<<<< HEAD
 
       - name: Build uncovered coverage comment
         if: hashFiles('pr-artifacts/modules/*/report.xml') != ''
@@ -186,23 +185,3 @@ jobs:
           number: ${{ github.event.workflow_run.pull_requests[0].number }}
           header: coverage-uncovered
           path: coverage-uncovered.md
-
-      - name: Build PR summary
-        shell: bash
-        run: |
-          python3 .github/scripts/pr/build_pr_summary.py \
-            pr-artifacts \
-            pr-summary.md \
-            "${{ github.event.workflow_run.pull_requests[0].number }}" \
-            "${{ github.event.workflow_run.head_sha }}" \
-            "${{ github.event.workflow_run.html_url }}" \
-            "${{ github.event.workflow_run.conclusion }}"
-
-      - name: Publish sticky PR summary
-        uses: marocchino/sticky-pull-request-comment@v3.0.2
-        with:
-          number: ${{ github.event.workflow_run.pull_requests[0].number }}
-          header: ci-quality-overview
-          path: pr-summary.md
-=======
->>>>>>> 1bd3931 (ci: run coverage-only reporting from quality monitor)
