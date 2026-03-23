@@ -6,6 +6,10 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
+MAX_FILES = 10
+MAX_RANGES_PER_FILE = 5
+
+
 def collect_uncovered_ranges(report: Path, repo_root: Path) -> list[tuple[str, list[str]]]:
     try:
         root = ET.parse(report).getroot()
@@ -101,6 +105,41 @@ def render_ranges_cell(repo: str, sha: str, file_path: str, ranges: list[str]) -
     return ", ".join(links)
 
 
+def detect_language(file_path: str) -> str:
+    suffix = Path(file_path).suffix.lower()
+    if suffix == ".kt":
+        return "kotlin"
+    if suffix == ".java":
+        return "java"
+    return "text"
+
+
+def parse_range(line_range: str) -> tuple[int, int]:
+    if "-" in line_range:
+        start, end = line_range.split("-", 1)
+        return int(start), int(end)
+    number = int(line_range)
+    return number, number
+
+
+def render_snippet(repo_root: Path, file_path: str, line_range: str) -> str:
+    start, end = parse_range(line_range)
+    file_on_disk = repo_root / file_path
+    if not file_on_disk.exists():
+        return ""
+
+    content = file_on_disk.read_text(encoding="utf-8").splitlines()
+    start_index = max(start - 1, 0)
+    end_index = min(end, len(content))
+
+    snippet_lines = [
+        f"{line_number:>4} | {content[line_number - 1]}"
+        for line_number in range(start_index + 1, end_index + 1)
+    ]
+    language = detect_language(file_path)
+    return "\n".join([f"```{language}", *snippet_lines, "```"])
+
+
 def main() -> int:
     if len(sys.argv) not in {3, 5}:
         print(
@@ -127,6 +166,7 @@ def main() -> int:
     if not items:
         lines.append("- No completely uncovered line ranges found in the published module reports.")
     else:
+        selected_items = items[:MAX_FILES]
         lines.extend(
             [
                 "The links below point to the exact file and line ranges in the PR head commit.",
@@ -135,10 +175,28 @@ def main() -> int:
                 "| --- | --- |",
             ]
         )
-        for file_path, ranges in items:
+        for file_path, ranges in selected_items:
+            limited_ranges = ranges[:MAX_RANGES_PER_FILE]
             lines.append(
-                f"| {render_file_cell(repo, sha, file_path)} | {render_ranges_cell(repo, sha, file_path, ranges)} |"
+                f"| {render_file_cell(repo, sha, file_path)} | "
+                f"{render_ranges_cell(repo, sha, file_path, limited_ranges)} |"
             )
+
+        lines.extend(["", "### Code Snippets", ""])
+        for file_path, ranges in selected_items:
+            limited_ranges = ranges[:MAX_RANGES_PER_FILE]
+            lines.append(f"#### {render_file_cell(repo, sha, file_path)}")
+            lines.append("")
+            for line_range in limited_ranges:
+                if repo and sha:
+                    lines.append(f"- Range {render_ranges_cell(repo, sha, file_path, [line_range])}")
+                else:
+                    lines.append(f"- Range `{line_range}`")
+                snippet = render_snippet(repo_root, file_path, line_range)
+                if snippet:
+                    lines.append("")
+                    lines.append(snippet)
+                    lines.append("")
 
     output_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return 0
