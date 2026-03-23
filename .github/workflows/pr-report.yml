@@ -198,6 +198,22 @@ jobs:
           header: coverage-details
           path: coverage-details.md
 
+      - name: Build uncovered coverage comment
+        if: hashFiles('pr-artifacts/modules/*/report.xml') != ''
+        shell: bash
+        run: |
+          python3 .github/scripts/quality/build_uncovered_coverage_comment.py \
+            pr-artifacts \
+            coverage-uncovered.md
+
+      - name: Publish uncovered coverage comment
+        if: hashFiles('pr-artifacts/modules/*/report.xml') != ''
+        uses: marocchino/sticky-pull-request-comment@v3.0.2
+        with:
+          number: ${{ github.event.workflow_run.pull_requests[0].number }}
+          header: coverage-uncovered
+          path: coverage-uncovered.md
+
       - name: Build PR summary
         shell: bash
         run: |
