@@ -204,7 +204,9 @@ jobs:
         run: |
           python3 .github/scripts/quality/build_uncovered_coverage_comment.py \
             pr-artifacts \
-            coverage-uncovered.md
+            coverage-uncovered.md \
+            "${{ github.repository }}" \
+            "${{ github.event.workflow_run.head_sha }}"
 
       - name: Publish uncovered coverage comment
         if: hashFiles('pr-artifacts/modules/*/report.xml') != ''

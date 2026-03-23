@@ -79,16 +79,40 @@ def format_range(start: int, end: int) -> str:
     return f"{start}-{end}"
 
 
+def build_blob_url(repo: str, sha: str, file_path: str, line_range: str) -> str:
+    if "-" in line_range:
+        start, end = line_range.split("-", 1)
+        anchor = f"#L{start}-L{end}"
+    else:
+        anchor = f"#L{line_range}"
+    return f"https://github.com/{repo}/blob/{sha}/{file_path}{anchor}"
+
+
+def render_file_cell(repo: str, sha: str, file_path: str) -> str:
+    if not repo or not sha:
+        return f"`{file_path}`"
+    return f"[`{file_path}`](https://github.com/{repo}/blob/{sha}/{file_path})"
+
+
+def render_ranges_cell(repo: str, sha: str, file_path: str, ranges: list[str]) -> str:
+    if not repo or not sha:
+        return f"`{', '.join(ranges)}`"
+    links = [f"[`{line_range}`]({build_blob_url(repo, sha, file_path, line_range)})" for line_range in ranges]
+    return ", ".join(links)
+
+
 def main() -> int:
-    if len(sys.argv) != 3:
+    if len(sys.argv) not in {3, 5}:
         print(
-            "usage: build_uncovered_coverage_comment.py <reports_root> <output_file>",
+            "usage: build_uncovered_coverage_comment.py <reports_root> <output_file> [repo sha]",
             file=sys.stderr,
         )
         return 2
 
     reports_root = Path(sys.argv[1])
     output_file = Path(sys.argv[2])
+    repo = sys.argv[3] if len(sys.argv) == 5 else ""
+    sha = sys.argv[4] if len(sys.argv) == 5 else ""
     repo_root = Path.cwd()
 
     items: list[tuple[str, list[str]]] = []
@@ -105,12 +129,16 @@ def main() -> int:
     else:
         lines.extend(
             [
+                "The links below point to the exact file and line ranges in the PR head commit.",
+                "",
                 "| File | Uncovered Lines |",
                 "| --- | --- |",
             ]
         )
         for file_path, ranges in items:
-            lines.append(f"| `{file_path}` | `{', '.join(ranges)}` |")
+            lines.append(
+                f"| {render_file_cell(repo, sha, file_path)} | {render_ranges_cell(repo, sha, file_path, ranges)} |"
+            )
 
     output_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return 0
