@@ -65,14 +65,10 @@ kover {
         }
         verify {
             rule {
-                minBound(60)
+                minBound(100)
             }
         }
     }
-}
-
-tasks.matching { it.name == "koverVerify" }.configureEach {
-    enabled = false
 }
 
 subprojects {
@@ -116,7 +112,7 @@ subprojects {
             }
             verify {
                 rule {
-                    minBound(60)
+                    minBound(100)
                 }
             }
         }
@@ -141,12 +137,6 @@ subprojects {
     pluginManager.withPlugin("com.android.library") {
         extensions.configure<LibraryExtension> {
             configureAndroidLint()
-        }
-    }
-
-    if (name == "app") {
-        tasks.matching { it.name == "koverVerify" }.configureEach {
-            enabled = false
         }
     }
 }
