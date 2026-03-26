@@ -12,14 +12,14 @@
           "name": "Line Coverage",
           "metric": "line",
           "sourcePath": "data/src/main/java",
-          "pattern": "**/modules/data/report.xml"
+          "pattern": "**/pr-artifacts/data/build/reports/kover/report.xml"
         },
         {
           "id": "jacoco",
           "name": "Branch Coverage",
           "metric": "branch",
           "sourcePath": "data/src/main/java",
-          "pattern": "**/modules/data/report.xml"
+          "pattern": "**/pr-artifacts/data/build/reports/kover/report.xml"
         }
       ]
     }

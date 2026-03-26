@@ -50,16 +50,20 @@ def format_metric_cell(counts: MetricCounts, metric: str) -> str:
     return f"{format_ratio(covered, missed)} ({covered}/{total})"
 
 
+def render_table_row(cells: list[str]) -> str:
+    return f"| {' | '.join(cells)} |"
+
+
 def discover_reports(reports_root: Path) -> tuple[MetricCounts | None, list[tuple[str, MetricCounts]]]:
-    aggregate_report = reports_root / "aggregate" / "report.xml"
+    aggregate_report = reports_root / "build" / "reports" / "kover" / "report.xml"
     if aggregate_report.exists():
         aggregate_counts = read_counters(aggregate_report)
         module_rows: list[tuple[str, MetricCounts]] = []
-        for report in sorted((reports_root / "modules").glob("*/report.xml")):
+        for report in reports_root.glob("*/build/reports/kover/report.xml"):
             counts = read_counters(report)
             if counts is None:
                 continue
-            module_rows.append((report.parent.name, counts))
+            module_rows.append((report.relative_to(reports_root).parts[0], counts))
         return aggregate_counts, module_rows
 
     aggregate_counts = None
@@ -121,7 +125,7 @@ def main() -> int:
             covered, missed = aggregate_counts.get(metric, (0, 0))
             total = covered + missed
             lines.append(
-                f"| {label} | {format_ratio(covered, missed)} | {covered} | {missed} | {total} |"
+                render_table_row([label, format_ratio(covered, missed), str(covered), str(missed), str(total)])
             )
 
     if rows:
@@ -137,12 +141,16 @@ def main() -> int:
 
         for module, counts in sorted(rows):
             lines.append(
-                f"| `{module}` | "
-                f"{format_metric_cell(counts, 'LINE')} | "
-                f"{format_metric_cell(counts, 'INSTRUCTION')} | "
-                f"{format_metric_cell(counts, 'BRANCH')} | "
-                f"{format_metric_cell(counts, 'METHOD')} | "
-                f"{format_metric_cell(counts, 'CLASS')} |"
+                render_table_row(
+                    [
+                        f"`{module}`",
+                        format_metric_cell(counts, "LINE"),
+                        format_metric_cell(counts, "INSTRUCTION"),
+                        format_metric_cell(counts, "BRANCH"),
+                        format_metric_cell(counts, "METHOD"),
+                        format_metric_cell(counts, "CLASS"),
+                    ]
+                )
             )
     elif aggregate_counts is None:
         lines.extend(["", "- No Kover XML reports found"])

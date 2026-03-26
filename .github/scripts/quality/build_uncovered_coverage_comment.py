@@ -10,13 +10,12 @@ MAX_FILES = 10
 MAX_RANGES_PER_FILE = 5
 
 
-def collect_uncovered_ranges(report: Path, repo_root: Path) -> list[tuple[str, list[str]]]:
+def collect_uncovered_ranges(report: Path, module: str, repo_root: Path) -> list[tuple[str, list[str]]]:
     try:
         root = ET.parse(report).getroot()
     except ET.ParseError:
         return []
 
-    module = report.parent.name
     uncovered: list[tuple[str, list[str]]] = []
 
     for package in root.findall("./package"):
@@ -155,8 +154,9 @@ def main() -> int:
     repo_root = Path.cwd()
 
     items: list[tuple[str, list[str]]] = []
-    for report in sorted((reports_root / "modules").glob("*/report.xml")):
-        items.extend(collect_uncovered_ranges(report, repo_root))
+    for report in sorted(reports_root.glob("*/build/reports/kover/report.xml")):
+        module = report.relative_to(reports_root).parts[0]
+        items.extend(collect_uncovered_ranges(report, module, repo_root))
 
     lines = [
         "## Uncovered Code",

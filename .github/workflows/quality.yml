@@ -248,18 +248,18 @@ jobs:
         shell: bash
         run: bash .github/scripts/quality/run_coverage.sh
 
-      - name: Prepare coverage artifacts
-        if: always()
-        shell: bash
-        run: bash .github/scripts/quality/prepare_coverage_artifacts.sh coverage-artifacts
-
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v7.0.0
         with:
           name: quality-coverage-reports
           if-no-files-found: ignore
-          path: coverage-artifacts
+          path: |
+            build/reports/kover/report.xml
+            ai/build/reports/kover/report.xml
+            app/build/reports/kover/report.xml
+            data/build/reports/kover/report.xml
+            domain/build/reports/kover/report.xml
 
       - name: Publish coverage summary
         if: always()

@@ -39,6 +39,28 @@ jobs:
         shell: bash
         run: bash .github/scripts/pr/list_downloaded_artifacts.sh pr-artifacts
 
+      - name: Detect coverage reports
+        id: coverage-reports
+        shell: bash
+        run: |
+          aggregate=false
+          modules=false
+          if [[ -f pr-artifacts/build/reports/kover/report.xml ]]; then
+            aggregate=true
+          fi
+          echo "aggregate=$aggregate" >> "$GITHUB_OUTPUT"
+
+          for module in ai app data domain; do
+            present=false
+            if [[ -f "pr-artifacts/$module/build/reports/kover/report.xml" ]]; then
+              present=true
+              modules=true
+            fi
+            echo "$module=$present" >> "$GITHUB_OUTPUT"
+          done
+
+          echo "modules=$modules" >> "$GITHUB_OUTPUT"
+
       - name: Publish unit test report
         if: hashFiles('pr-artifacts/**/build/test-results/testDebugUnitTest/*.xml') != ''
         continue-on-error: true
@@ -68,7 +90,7 @@ jobs:
           detailed_summary: true
 
       - name: Load quality monitor coverage config
-        if: hashFiles('pr-artifacts/aggregate/report.xml') != ''
+        if: steps.coverage-reports.outputs.aggregate == 'true'
         id: quality-monitor-config
         shell: bash
         run: |
@@ -79,7 +101,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Publish coverage report
-        if: hashFiles('pr-artifacts/aggregate/report.xml') != ''
+        if: steps.coverage-reports.outputs.aggregate == 'true'
         continue-on-error: true
         uses: uhafner/quality-monitor@v4.7.1
         with:
@@ -93,7 +115,7 @@ jobs:
           config: ${{ steps.quality-monitor-config.outputs.json }}
 
       - name: Load AI coverage annotations config
-        if: hashFiles('pr-artifacts/modules/ai/report.xml') != ''
+        if: steps.coverage-reports.outputs.ai == 'true'
         id: coverage-annotations-ai-config
         shell: bash
         run: |
@@ -104,7 +126,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Publish AI coverage annotations
-        if: hashFiles('pr-artifacts/modules/ai/report.xml') != ''
+        if: steps.coverage-reports.outputs.ai == 'true'
         continue-on-error: true
         uses: uhafner/autograding-github-action@v6.0.1
         env:
@@ -116,7 +138,7 @@ jobs:
           config: ${{ steps.coverage-annotations-ai-config.outputs.json }}
 
       - name: Load App coverage annotations config
-        if: hashFiles('pr-artifacts/modules/app/report.xml') != ''
+        if: steps.coverage-reports.outputs.app == 'true'
         id: coverage-annotations-app-config
         shell: bash
         run: |
@@ -127,7 +149,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Publish App coverage annotations
-        if: hashFiles('pr-artifacts/modules/app/report.xml') != ''
+        if: steps.coverage-reports.outputs.app == 'true'
         continue-on-error: true
         uses: uhafner/autograding-github-action@v6.0.1
         env:
@@ -139,7 +161,7 @@ jobs:
           config: ${{ steps.coverage-annotations-app-config.outputs.json }}
 
       - name: Load Data coverage annotations config
-        if: hashFiles('pr-artifacts/modules/data/report.xml') != ''
+        if: steps.coverage-reports.outputs.data == 'true'
         id: coverage-annotations-data-config
         shell: bash
         run: |
@@ -150,7 +172,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Publish Data coverage annotations
-        if: hashFiles('pr-artifacts/modules/data/report.xml') != ''
+        if: steps.coverage-reports.outputs.data == 'true'
         continue-on-error: true
         uses: uhafner/autograding-github-action@v6.0.1
         env:
@@ -162,7 +184,7 @@ jobs:
           config: ${{ steps.coverage-annotations-data-config.outputs.json }}
 
       - name: Load Domain coverage annotations config
-        if: hashFiles('pr-artifacts/modules/domain/report.xml') != ''
+        if: steps.coverage-reports.outputs.domain == 'true'
         id: coverage-annotations-domain-config
         shell: bash
         run: |
@@ -173,7 +195,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Publish Domain coverage annotations
-        if: hashFiles('pr-artifacts/modules/domain/report.xml') != ''
+        if: steps.coverage-reports.outputs.domain == 'true'
         continue-on-error: true
         uses: uhafner/autograding-github-action@v6.0.1
         env:
@@ -185,7 +207,7 @@ jobs:
           config: ${{ steps.coverage-annotations-domain-config.outputs.json }}
 
       - name: Build coverage details comment
-        if: hashFiles('pr-artifacts/aggregate/report.xml') != ''
+        if: steps.coverage-reports.outputs.aggregate == 'true'
         shell: bash
         run: |
           python3 .github/scripts/quality/build_coverage_summary.py \
@@ -193,7 +215,7 @@ jobs:
             coverage-details.md
 
       - name: Publish coverage details comment
-        if: hashFiles('pr-artifacts/aggregate/report.xml') != ''
+        if: steps.coverage-reports.outputs.aggregate == 'true'
         uses: marocchino/sticky-pull-request-comment@v3.0.2
         with:
           number: ${{ github.event.workflow_run.pull_requests[0].number }}
@@ -201,7 +223,7 @@ jobs:
           path: coverage-details.md
 
       - name: Build uncovered coverage comment
-        if: hashFiles('pr-artifacts/modules/*/report.xml') != ''
+        if: steps.coverage-reports.outputs.modules == 'true'
         shell: bash
         run: |
           python3 .github/scripts/quality/build_uncovered_coverage_comment.py \
@@ -211,7 +233,7 @@ jobs:
             "${{ github.event.workflow_run.head_sha }}"
 
       - name: Publish uncovered coverage comment
-        if: hashFiles('pr-artifacts/modules/*/report.xml') != ''
+        if: steps.coverage-reports.outputs.modules == 'true'
         uses: marocchino/sticky-pull-request-comment@v3.0.2
         with:
           number: ${{ github.event.workflow_run.pull_requests[0].number }}
