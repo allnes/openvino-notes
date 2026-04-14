@@ -68,7 +68,7 @@ jobs:
 
       - name: Upload foundation artifacts
         if: always()
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: quality-foundation-reports
           if-no-files-found: ignore
@@ -102,7 +102,7 @@ jobs:
 
       - name: Upload quality artifacts
         if: always()
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: quality-build-reports-x86_64
           if-no-files-found: ignore
@@ -113,7 +113,7 @@ jobs:
 
       - name: Upload debug APK artifacts
         if: always()
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: debug-apks-x86_64
           if-no-files-found: error
@@ -145,7 +145,7 @@ jobs:
 
       - name: Upload quality artifacts
         if: always()
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: quality-build-reports-arm64
           if-no-files-found: ignore
@@ -156,7 +156,7 @@ jobs:
 
       - name: Upload debug APK artifacts
         if: always()
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: debug-apks-arm64
           if-no-files-found: error
@@ -205,7 +205,7 @@ jobs:
 
       - name: Upload quality artifacts
         if: always()
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: quality-build-reports-windows-x86_64
           if-no-files-found: ignore
@@ -216,7 +216,7 @@ jobs:
 
       - name: Upload debug APK artifacts
         if: always()
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: debug-apks-windows-x86_64
           if-no-files-found: error
@@ -250,7 +250,7 @@ jobs:
 
       - name: Upload coverage artifacts
         if: always()
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: quality-coverage-reports
           if-no-files-found: ignore

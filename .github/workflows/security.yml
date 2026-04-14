@@ -34,7 +34,7 @@ jobs:
 
       - name: Upload secrets artifacts
         if: always()
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: secret-reports
           if-no-files-found: ignore
