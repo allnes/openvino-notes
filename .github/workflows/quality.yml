@@ -40,28 +40,28 @@ jobs:
 
       - name: Upload detekt SARIF for ai
         if: always() && hashFiles('ai/build/reports/detekt/detekt.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v4.34.1
+        uses: github/codeql-action/upload-sarif@v4.35.2
         with:
           sarif_file: ai/build/reports/detekt/detekt.sarif
           category: detekt-ai
 
       - name: Upload detekt SARIF for app
         if: always() && hashFiles('app/build/reports/detekt/detekt.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v4.34.1
+        uses: github/codeql-action/upload-sarif@v4.35.2
         with:
           sarif_file: app/build/reports/detekt/detekt.sarif
           category: detekt-app
 
       - name: Upload detekt SARIF for data
         if: always() && hashFiles('data/build/reports/detekt/detekt.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v4.34.1
+        uses: github/codeql-action/upload-sarif@v4.35.2
         with:
           sarif_file: data/build/reports/detekt/detekt.sarif
           category: detekt-data
 
       - name: Upload detekt SARIF for domain
         if: always() && hashFiles('domain/build/reports/detekt/detekt.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v4.34.1
+        uses: github/codeql-action/upload-sarif@v4.35.2
         with:
           sarif_file: domain/build/reports/detekt/detekt.sarif
           category: detekt-domain
