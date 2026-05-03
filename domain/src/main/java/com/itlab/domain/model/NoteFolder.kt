@@ -1,7 +1,7 @@
 package com.itlab.domain.model
 
-import kotlinx.datetime.Instant
 import kotlin.time.Clock
+import kotlin.time.Instant
 import java.util.UUID
 
 data class NoteFolder(

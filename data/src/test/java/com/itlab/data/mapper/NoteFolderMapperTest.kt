@@ -2,7 +2,7 @@ package com.itlab.data.mapper
 
 import com.itlab.data.entity.FolderEntity
 import com.itlab.domain.model.NoteFolder
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

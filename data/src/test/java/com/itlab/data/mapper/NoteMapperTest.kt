@@ -4,7 +4,7 @@ import com.itlab.data.entity.NoteEntity
 import com.itlab.domain.model.ContentItem
 import com.itlab.domain.model.DataSource
 import com.itlab.domain.model.Note
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals

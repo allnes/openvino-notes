@@ -1,7 +1,7 @@
 package com.itlab.data.entity
 
 import kotlin.time.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -69,7 +69,7 @@ class NoteEntityTest {
         val id = "1"
         val title = "A"
         val content = "B"
-        val timestamp = kotlinx.datetime.Instant.fromEpochMilliseconds(123456789L)
+        val timestamp = Instant.fromEpochMilliseconds(123456789L)
 
         val note1 =
             NoteEntity(

@@ -7,7 +7,7 @@ import com.itlab.data.db.AppDatabase
 import com.itlab.data.entity.NoteEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull

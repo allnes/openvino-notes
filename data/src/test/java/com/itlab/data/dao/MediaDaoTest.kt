@@ -8,7 +8,7 @@ import com.itlab.data.entity.MediaEntity
 import com.itlab.data.entity.NoteEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -33,7 +33,7 @@ class MediaDaoTest {
                 title = "Parent Note",
                 content = "Content",
                 createdAt = testTime,
-                updatedAt = kotlinx.datetime.Instant.fromEpochMilliseconds(0),
+                updatedAt = Instant.fromEpochMilliseconds(0),
                 isSynced = true,
             )
         noteDao.insert(note)
