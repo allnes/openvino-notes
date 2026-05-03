@@ -2,8 +2,8 @@ package com.itlab.domain.usecase.noteusecase
 
 import com.itlab.domain.model.Note
 import com.itlab.domain.repository.NotesRepository
-import kotlin.time.Clock
 import java.util.UUID
+import kotlin.time.Clock
 
 class CreateNoteUseCase(
     private val repo: NotesRepository,

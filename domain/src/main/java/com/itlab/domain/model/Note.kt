@@ -1,9 +1,9 @@
 package com.itlab.domain.model
 
 import kotlinx.serialization.Serializable
+import java.util.UUID
 import kotlin.time.Clock
 import kotlin.time.Instant
-import java.util.UUID
 
 data class Note(
     val id: String = UUID.randomUUID().toString(),

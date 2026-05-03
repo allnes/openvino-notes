@@ -8,7 +8,6 @@ import com.itlab.data.entity.MediaEntity
 import com.itlab.data.entity.NoteEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import kotlin.time.Instant
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -16,6 +15,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import kotlin.time.Instant
 
 @RunWith(AndroidJUnit4::class)
 @Config(manifest = Config.NONE)

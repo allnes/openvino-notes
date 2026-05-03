@@ -1,11 +1,11 @@
 package com.itlab.data.entity
 
-import kotlin.time.Clock
-import kotlin.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 class NoteEntityTest {
     val testTime = Instant.parse("2026-03-24T12:00:00Z")
