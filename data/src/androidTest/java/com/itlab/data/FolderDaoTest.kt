@@ -8,7 +8,7 @@ import com.itlab.data.dao.FolderDao
 import com.itlab.data.db.AppDatabase
 import com.itlab.data.entity.FolderEntity
 import kotlinx.coroutines.test.runTest
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

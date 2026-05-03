@@ -1,7 +1,7 @@
 package com.itlab.domain.usecase.noteusecase
 
 import com.itlab.domain.repository.NotesRepository
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
 class ApplyTagsUseCase(
     private val repo: NotesRepository,

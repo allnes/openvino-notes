@@ -2,7 +2,7 @@ package com.itlab.domain.usecase.noteusecase
 
 import com.itlab.domain.model.Note
 import com.itlab.domain.repository.NotesRepository
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
 class UpdateNoteUseCase(
     private val repo: NotesRepository,

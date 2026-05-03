@@ -1,8 +1,8 @@
 package com.itlab.domain.model
 
-import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
+import kotlin.time.Clock
 import java.util.UUID
 
 data class Note(
