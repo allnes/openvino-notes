@@ -108,7 +108,8 @@ class BuildConfig:
             raise SystemExit("ANDROID_SDK_ROOT or ANDROID_HOME must be set.")
 
         android_ndk_version = getenv("ANDROID_NDK_VERSION", "29.0.14206865")
-        android_ndk = Path(getenv("ANDROID_NDK", str(Path(android_sdk) / "ndk" / android_ndk_version)))
+        versioned_ndk = Path(android_sdk) / "ndk" / android_ndk_version
+        android_ndk = versioned_ndk if versioned_ndk.is_dir() else Path(getenv("ANDROID_NDK", str(versioned_ndk)))
         if not android_ndk.is_dir():
             raise SystemExit(f"Android NDK not found: {android_ndk}")
 
