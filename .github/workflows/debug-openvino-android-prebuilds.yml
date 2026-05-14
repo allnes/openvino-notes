@@ -1,9 +1,9 @@
-name: Nightly OpenVINO Android Prebuilds
+name: Debug OpenVINO Android Prebuilds
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "17 2 * * *"
+  push:
+  pull_request:
 
 env:
   OPENVINO_REF: "2026.1.2"
@@ -70,21 +70,21 @@ jobs:
           path: ${{ steps.build.outputs.artifact_path }}
           if-no-files-found: error
 
-      - name: Publish rolling nightly release
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+      - name: Publish rolling debug release
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: openvino-android-prebuilds-nightly
+          RELEASE_TAG: openvino-android-prebuilds-debug
           ARTIFACT_PATH: ${{ steps.build.outputs.artifact_path }}
         run: |
           set -euo pipefail
 
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" \
-              --title "OpenVINO Android Prebuilds Nightly" \
+              --title "OpenVINO Android Prebuilds Debug" \
               --prerelease \
-              --notes "Rolling nightly Android arm64 OpenVINO prebuilds."
+              --notes "Rolling debug Android arm64 OpenVINO prebuilds."
           fi
 
           gh release upload "$RELEASE_TAG" "$ARTIFACT_PATH" --clobber
