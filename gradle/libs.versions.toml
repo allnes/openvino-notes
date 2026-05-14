@@ -20,6 +20,7 @@ timber = "5.0.1"
 kotlinxSerializationJson = "1.11.0"
 robolectric = "4.16.1"
 coroutinesTest = "1.11.0"
+coroutines = "1.11.0"
 coreTesting = "2.2.0"
 lifecycleViewmodelKtx = "2.10.0"
 koin = "4.2.1"
@@ -50,6 +51,7 @@ timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "tim
 androidx-compose-material-icons-core = { group = "androidx.compose.material", name = "material-icons-core" }
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 androidx-core-testing = { group = "androidx.arch.core", name = "core-testing", version.ref = "coreTesting" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycleRuntimeKtx" }
 androidx-lifecycle-viewmodel-ktx = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycleViewmodelKtx" }

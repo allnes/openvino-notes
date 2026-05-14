@@ -9,6 +9,9 @@ class EditorViewModel(
     initialNote: NoteItemUi,
 ) {
     private val noteId: String = initialNote.id
+    private val folderId: String? = initialNote.folderId
+    private val tags: Set<String> = initialNote.tags
+    private val summary: String? = initialNote.summary
 
     var title: String by mutableStateOf(initialNote.title)
         private set
@@ -29,5 +32,8 @@ class EditorViewModel(
             id = noteId,
             title = title,
             content = content,
+            folderId = folderId,
+            tags = tags,
+            summary = summary,
         )
 }

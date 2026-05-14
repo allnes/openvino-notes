@@ -24,6 +24,13 @@ data class NotesUiState(
     val screen: NotesUiScreen = NotesUiScreen.Directories,
     val directories: List<DirectoryItemUi> = emptyList(),
     val notes: List<NoteItemUi> = emptyList(),
+    val aiState: AiUiState = AiUiState(),
+)
+
+data class AiUiState(
+    val isGeneratingSummary: Boolean = false,
+    val isGeneratingTags: Boolean = false,
+    val errorMessage: String? = null,
 )
 
 sealed interface NotesUiEvent {
@@ -50,6 +57,14 @@ sealed interface NotesUiEvent {
     data object BackToDirectoryNotes : NotesUiEvent
 
     data class SaveNote(
+        val note: NoteItemUi,
+    ) : NotesUiEvent
+
+    data class SuggestSummary(
+        val note: NoteItemUi,
+    ) : NotesUiEvent
+
+    data class SuggestTags(
         val note: NoteItemUi,
     ) : NotesUiEvent
 

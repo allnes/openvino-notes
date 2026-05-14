@@ -1,6 +1,7 @@
 package com.itlab.notes
 
 import android.app.Application
+import com.itlab.ai.di.aiModule
 import com.itlab.data.di.dataModule
 import com.itlab.notes.di.appModule
 import org.koin.android.ext.koin.androidContext
@@ -11,7 +12,7 @@ class NotesApplication : Application() {
         super.onCreate()
         startKoin {
             androidContext(this@NotesApplication)
-            modules(listOf(appModule, dataModule))
+            modules(listOf(appModule, dataModule, aiModule))
         }
     }
 }

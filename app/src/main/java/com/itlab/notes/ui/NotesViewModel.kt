@@ -68,6 +68,8 @@ class NotesViewModel(
             }
             NotesUiEvent.BackToDirectoryNotes -> backToDirectoryNotes()
             is NotesUiEvent.SaveNote -> saveNote(event.note)
+            is NotesUiEvent.SuggestSummary -> suggestSummary(event.note)
+            is NotesUiEvent.SuggestTags -> suggestTags(event.note)
             is NotesUiEvent.DeleteNote -> {
                 viewModelScope.launch {
                     useCases.deleteNoteUseCase(event.noteId)
@@ -100,6 +102,7 @@ class NotesViewModel(
             uiState.copy(
                 screen = NotesUiScreen.DirectoryNotes(directory = directory),
                 notes = emptyList(),
+                aiState = AiUiState(),
             )
         notesJob?.cancel()
         val isAll = directory.id == "all"
@@ -113,13 +116,19 @@ class NotesViewModel(
                     }
 
                 flow.collect { notes ->
+                    val updatedDirectory = directory.copy(noteCount = notes.size)
+                    val currentScreen = uiState.screen
                     uiState =
                         uiState.copy(
                             notes = notes.map { it.toUi() },
                             screen =
-                                NotesUiScreen.DirectoryNotes(
-                                    directory = directory.copy(noteCount = notes.size),
-                                ),
+                                if (currentScreen is NotesUiScreen.DirectoryNotes &&
+                                    currentScreen.directory.id == directory.id
+                                ) {
+                                    NotesUiScreen.DirectoryNotes(directory = updatedDirectory)
+                                } else {
+                                    currentScreen
+                                },
                         )
                 }
             }
@@ -130,6 +139,7 @@ class NotesViewModel(
             uiState.copy(
                 screen = NotesUiScreen.Directories,
                 notes = emptyList(),
+                aiState = AiUiState(),
             )
     }
 
@@ -139,6 +149,7 @@ class NotesViewModel(
             uiState =
                 uiState.copy(
                     screen = NotesUiScreen.NoteEditor(directory = dir, note = note),
+                    aiState = AiUiState(),
                 )
         }
     }
@@ -151,6 +162,7 @@ class NotesViewModel(
             uiState =
                 uiState.copy(
                     screen = NotesUiScreen.NoteEditor(directory = dir, note = newNote),
+                    aiState = AiUiState(),
                 )
         }
     }
@@ -158,21 +170,137 @@ class NotesViewModel(
     private fun backToDirectoryNotes() {
         val editor = uiState.screen as? NotesUiScreen.NoteEditor
         if (editor != null) {
-            uiState = uiState.copy(screen = NotesUiScreen.DirectoryNotes(directory = editor.directory))
+            uiState =
+                uiState.copy(
+                    screen = NotesUiScreen.DirectoryNotes(directory = editor.directory),
+                    aiState = AiUiState(),
+                )
         }
     }
 
     private fun saveNote(note: NoteItemUi) {
         val editor = uiState.screen as? NotesUiScreen.NoteEditor ?: return
         viewModelScope.launch {
+            upsertEditorNote(note, editor)
+                .onSuccess {
+                    uiState =
+                        uiState.copy(
+                            screen = NotesUiScreen.DirectoryNotes(directory = editor.directory),
+                            aiState = AiUiState(),
+                        )
+                }.onFailure { error ->
+                    updateAiState { it.copy(errorMessage = error.userMessage("Unable to save note")) }
+                }
+        }
+    }
+
+    private fun suggestSummary(note: NoteItemUi) {
+        val editor = uiState.screen as? NotesUiScreen.NoteEditor ?: return
+        viewModelScope.launch {
+            updateAiState { it.copy(isGeneratingSummary = true, errorMessage = null) }
+            val savedNote =
+                upsertEditorNote(note, editor)
+                    .getOrElse { error ->
+                        finishSummary(error)
+                        return@launch
+                    }
+            updateEditorNote(savedNote)
+
+            val generated =
+                useCases
+                    .suggestSummaryUseCase(savedNote.id)
+                    .mapCatching { summary ->
+                        useCases.applySummaryUseCase(savedNote.id, summary).getOrThrow()
+                        savedNote.copy(summary = summary)
+                    }
+
+            generated
+                .onSuccess { updatedNote ->
+                    updateEditorNote(updatedNote)
+                    updateAiState { it.copy(isGeneratingSummary = false, errorMessage = null) }
+                }.onFailure { error ->
+                    finishSummary(error)
+                }
+        }
+    }
+
+    private fun suggestTags(note: NoteItemUi) {
+        val editor = uiState.screen as? NotesUiScreen.NoteEditor ?: return
+        viewModelScope.launch {
+            updateAiState { it.copy(isGeneratingTags = true, errorMessage = null) }
+            val savedNote =
+                upsertEditorNote(note, editor)
+                    .getOrElse { error ->
+                        finishTags(error)
+                        return@launch
+                    }
+            updateEditorNote(savedNote)
+
+            val generated =
+                useCases
+                    .suggestTagsUseCase(savedNote.id)
+                    .mapCatching { tags ->
+                        useCases.applyTagsUseCase(savedNote.id, tags).getOrThrow()
+                        savedNote.copy(tags = tags)
+                    }
+
+            generated
+                .onSuccess { updatedNote ->
+                    updateEditorNote(updatedNote)
+                    updateAiState { it.copy(isGeneratingTags = false, errorMessage = null) }
+                }.onFailure { error ->
+                    finishTags(error)
+                }
+        }
+    }
+
+    private suspend fun upsertEditorNote(
+        note: NoteItemUi,
+        editor: NotesUiScreen.NoteEditor,
+    ): Result<NoteItemUi> =
+        runCatching {
             val targetFolderId = note.folderId ?: editor.directory.id.asDomainFolderId()
             val existing = latestNotes.firstOrNull { it.id == note.id }
             if (existing != null) {
-                useCases.updateNoteUseCase(existing.applyUiUpdate(note, targetFolderId))
+                useCases.updateNoteUseCase(existing.applyUiUpdate(note, targetFolderId)).getOrThrow()
+                note.copy(folderId = targetFolderId)
             } else {
-                useCases.createNoteUseCase(note.toDomain(folderId = targetFolderId))
+                val savedId = useCases.createNoteUseCase(note.toDomain(folderId = targetFolderId)).getOrThrow()
+                note.copy(id = savedId, folderId = targetFolderId)
             }
-            uiState = uiState.copy(screen = NotesUiScreen.DirectoryNotes(directory = editor.directory))
+        }
+
+    private fun updateEditorNote(note: NoteItemUi) {
+        val editor = uiState.screen as? NotesUiScreen.NoteEditor ?: return
+        uiState =
+            uiState.copy(
+                screen =
+                    NotesUiScreen.NoteEditor(
+                        directory = editor.directory,
+                        note = note,
+                    ),
+            )
+    }
+
+    private fun updateAiState(update: (AiUiState) -> AiUiState) {
+        uiState = uiState.copy(aiState = update(uiState.aiState))
+    }
+
+    private fun finishSummary(error: Throwable) {
+        updateAiState {
+            it.copy(
+                isGeneratingSummary = false,
+                errorMessage = error.userMessage("Unable to generate summary"),
+            )
+        }
+    }
+
+    private fun finishTags(error: Throwable) {
+        updateAiState {
+            it.copy(
+                isGeneratingTags = false,
+                errorMessage = error.userMessage("Unable to suggest tags"),
+            )
         }
     }
 
@@ -219,6 +347,8 @@ internal fun Note.toUi(): NoteItemUi =
                 .filterIsInstance<ContentItem.Text>()
                 .joinToString("\n") { it.text },
         folderId = folderId,
+        tags = tags,
+        summary = summary,
     )
 
 internal fun NoteItemUi.toDomain(folderId: String?): Note =
@@ -227,6 +357,8 @@ internal fun NoteItemUi.toDomain(folderId: String?): Note =
         title = title,
         folderId = folderId,
         contentItems = listOf(ContentItem.Text(content)),
+        tags = tags,
+        summary = summary,
     )
 
 internal fun Note.applyUiUpdate(
@@ -243,7 +375,11 @@ internal fun Note.applyUiUpdate(
         title = ui.title,
         folderId = targetFolderId,
         contentItems = if (updatedText != null) nonTextContent + updatedText else nonTextContent,
+        tags = ui.tags,
+        summary = ui.summary,
     )
 }
 
 internal fun String.asDomainFolderId(): String? = if (this == "all") null else this
+
+private fun Throwable.userMessage(fallback: String): String = message ?: fallback

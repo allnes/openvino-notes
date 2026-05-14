@@ -60,9 +60,16 @@ fun notesApp() {
             editorScreen(
                 directoryName = screen.directory.name,
                 note = screen.note,
+                aiState = state.aiState,
                 onBack = { viewModel.onEvent(NotesUiEvent.BackToDirectoryNotes) },
                 onSave = { updated ->
                     viewModel.onEvent(NotesUiEvent.SaveNote(updated))
+                },
+                onSuggestSummary = { updated ->
+                    viewModel.onEvent(NotesUiEvent.SuggestSummary(updated))
+                },
+                onSuggestTags = { updated ->
+                    viewModel.onEvent(NotesUiEvent.SuggestTags(updated))
                 },
             )
         }

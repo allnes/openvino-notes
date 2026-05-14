@@ -1,17 +1,25 @@
 package com.itlab.notes.ui.editor
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -22,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.itlab.notes.ui.AiUiState
 import com.itlab.notes.ui.notes.NoteItemUi
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,8 +38,11 @@ import com.itlab.notes.ui.notes.NoteItemUi
 fun editorScreen(
     directoryName: String,
     note: NoteItemUi,
+    aiState: AiUiState,
     onBack: () -> Unit,
     onSave: (NoteItemUi) -> Unit,
+    onSuggestSummary: (NoteItemUi) -> Unit,
+    onSuggestTags: (NoteItemUi) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val editorVm = remember(note.id) { EditorViewModel(initialNote = note) }
@@ -55,6 +67,11 @@ fun editorScreen(
             content = editorVm.content,
             onTitleChange = editorVm::onTitleChange,
             onContentChange = editorVm::onContentChange,
+            summary = note.summary,
+            tags = note.tags,
+            aiState = aiState,
+            onSuggestSummary = { onSuggestSummary(editorVm.buildUpdatedNote()) },
+            onSuggestTags = { onSuggestTags(editorVm.buildUpdatedNote()) },
             modifier = Modifier.padding(paddingValues),
         )
     }
@@ -116,6 +133,11 @@ private fun editorContent(
     content: String,
     onTitleChange: (String) -> Unit,
     onContentChange: (String) -> Unit,
+    summary: String?,
+    tags: Set<String>,
+    aiState: AiUiState,
+    onSuggestSummary: () -> Unit,
+    onSuggestTags: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -134,6 +156,15 @@ private fun editorContent(
             value = content,
             onValueChange = onContentChange,
             modifier = Modifier.padding(top = 12.dp),
+        )
+
+        editorAiPanel(
+            summary = summary,
+            tags = tags,
+            aiState = aiState,
+            onSuggestSummary = onSuggestSummary,
+            onSuggestTags = onSuggestTags,
+            modifier = Modifier.padding(top = 16.dp),
         )
     }
 }
@@ -192,4 +223,92 @@ private fun editorContentField(
                 errorIndicatorColor = Color.Transparent,
             ),
     )
+}
+
+@Composable
+private fun editorAiPanel(
+    summary: String?,
+    tags: Set<String>,
+    aiState: AiUiState,
+    onSuggestSummary: () -> Unit,
+    onSuggestTags: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    val isGenerating = aiState.isGeneratingSummary || aiState.isGeneratingTags
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Button(
+                onClick = onSuggestSummary,
+                enabled = !isGenerating,
+                modifier = Modifier.weight(1f),
+            ) {
+                if (aiState.isGeneratingSummary) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = colors.onPrimary,
+                    )
+                } else {
+                    Text("Summarize")
+                }
+            }
+
+            OutlinedButton(
+                onClick = onSuggestTags,
+                enabled = !isGenerating,
+                modifier = Modifier.weight(1f),
+            ) {
+                if (aiState.isGeneratingTags) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text("Suggest tags")
+                }
+            }
+        }
+
+        aiState.errorMessage?.let { error ->
+            Text(
+                text = error,
+                color = colors.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+
+        if (!summary.isNullOrBlank()) {
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "Summary",
+                        color = colors.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    Text(
+                        text = summary,
+                        color = colors.onSurface,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            }
+        }
+
+        if (tags.isNotEmpty()) {
+            Text(
+                text = "Tags: ${tags.joinToString(", ")}",
+                color = colors.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
 }
