@@ -10,16 +10,19 @@ env:
   OPENVINO_GENAI_REF: "2026.1.2.0"
   OPENVINO_CONTRIB_REF: "releases/2026/1"
   ONETBB_REF: "v2023.0.0"
+  OPENVINO_REPO: "https://github.com/openvinotoolkit/openvino.git"
+  OPENVINO_CONTRIB_REPO: "https://github.com/openvinotoolkit/openvino_contrib.git"
+  OPENVINO_GENAI_REPO: "https://github.com/openvinotoolkit/openvino.genai.git"
+  ONETBB_REPO: "https://github.com/uxlfoundation/oneTBB.git"
   ANDROID_ABI: "arm64-v8a"
   ANDROID_PLATFORM: "35"
   ANDROID_NDK_VERSION: "29.0.14206865"
-  BUILD_PARALLELISM: "2"
   JAVA_VERSION: "21"
 
 jobs:
   android-arm64:
     name: Android arm64 prebuild
-    runs-on: macos-15
+    runs-on: ubuntu-24.04
     timeout-minutes: 360
     permissions:
       contents: write
@@ -40,11 +43,13 @@ jobs:
 
       - name: Install Android NDK
         shell: bash
-        run: yes | sdkmanager "ndk;${ANDROID_NDK_VERSION}"
+        run: sdkmanager --install "ndk;${ANDROID_NDK_VERSION}"
 
       - name: Install host tools
         shell: bash
-        run: brew install ccache ninja
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache ninja-build
 
       - name: Restore ccache
         uses: actions/cache@v4.2.4
@@ -55,19 +60,46 @@ jobs:
             openvino-android-ccache-${{ runner.os }}-${{ env.OPENVINO_REF }}-${{ env.OPENVINO_GENAI_REF }}-${{ env.OPENVINO_CONTRIB_REF }}-${{ env.ONETBB_REF }}-
             openvino-android-ccache-${{ runner.os }}-
 
-      - name: Build OpenVINO Android prebuild
-        id: build
-        shell: bash
-        env:
-          RUN_ROOT: ${{ runner.temp }}/openvino-android-prebuilds
-          CCACHE_DIR: ${{ runner.temp }}/ccache
-        run: bash .github/scripts/nightly/build_openvino_android_prebuilds.sh
+      - name: Prepare build directories
+        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py prepare
+
+      - name: Checkout source dependencies
+        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py checkout-sources
+
+      - name: Record source manifest
+        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py record-source-manifest
+
+      - name: Build oneTBB
+        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py build-onetbb
+
+      - name: Configure OpenVINO
+        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py configure-openvino
+
+      - name: Build OpenVINO Runtime
+        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py build-openvino-runtime
+
+      - name: Build OpenVINO GenAI
+        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py build-openvino-genai
+
+      - name: Build OpenVINO Java API
+        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py build-openvino-java-api
+
+      - name: Install OpenVINO runtime
+        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py install-openvino
+
+      - name: Package Android prebuild
+        id: package
+        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py package-prebuild
+
+      - name: Show ccache stats
+        if: always()
+        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py ccache-stats
 
       - name: Upload prebuild artifact
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: ${{ steps.build.outputs.artifact_name }}
-          path: ${{ steps.build.outputs.artifact_path }}
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ steps.package.outputs.artifact_path }}
           if-no-files-found: error
 
       - name: Publish rolling debug release
@@ -76,7 +108,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: openvino-android-prebuilds-debug
-          ARTIFACT_PATH: ${{ steps.build.outputs.artifact_path }}
+          ARTIFACT_PATH: ${{ steps.package.outputs.artifact_path }}
         run: |
           set -euo pipefail
 
