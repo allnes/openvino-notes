@@ -13,11 +13,11 @@ data class OnDeviceLlmConfig(
     val maxTags: Int,
 ) {
     companion object {
-        fun gemma3SmallIt(): OnDeviceLlmConfig =
+        fun defaultAndroid(): OnDeviceLlmConfig =
             OnDeviceLlmConfig(
-                modelId = "google/gemma-3-270m-it",
-                assetModelDir = "models/gemma3-270m-it-openvino",
-                modelDirName = "gemma3-270m-it-openvino",
+                modelId = "Qwen/Qwen2.5-0.5B-Instruct",
+                assetModelDir = "models/on-device-llm-openvino",
+                modelDirName = "on-device-llm-openvino",
                 device = "CPU",
                 nativeLibraryName = "notes_llm",
                 cacheDirName = "openvino-genai-cache",

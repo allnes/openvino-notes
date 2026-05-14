@@ -1,10 +1,10 @@
 package com.itlab.ai
 
-class GemmaPromptBuilder(
-    private val config: OnDeviceLlmConfig = OnDeviceLlmConfig.gemma3SmallIt(),
+class NoteLlmPromptBuilder(
+    private val config: OnDeviceLlmConfig = OnDeviceLlmConfig.defaultAndroid(),
 ) {
     fun summaryPrompt(text: String): String =
-        gemmaUserTurn(
+        chatPrompt(
             """
             Summarize the note in 1-2 concise sentences.
             Return only the summary, without markdown or a preamble.
@@ -15,7 +15,7 @@ class GemmaPromptBuilder(
         )
 
     fun tagsPrompt(text: String): String =
-        gemmaUserTurn(
+        chatPrompt(
             """
             Suggest up to ${config.maxTags} short tags for the note.
             Return only a comma-separated tag list. Use lowercase tags.
@@ -25,12 +25,15 @@ class GemmaPromptBuilder(
             """.trimIndent(),
         )
 
-    private fun gemmaUserTurn(instruction: String): String =
+    private fun chatPrompt(instruction: String): String =
         """
-        <start_of_turn>user
+        <|im_start|>system
+        You are a concise assistant for a notes app.
+        <|im_end|>
+        <|im_start|>user
         $instruction
-        <end_of_turn>
-        <start_of_turn>model
+        <|im_end|>
+        <|im_start|>assistant
         """.trimIndent()
 
     private fun trimInput(text: String): String =

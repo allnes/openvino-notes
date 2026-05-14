@@ -46,8 +46,8 @@ class OpenVinoAiLayerTest {
             val result = service.summarize("Long note")
 
             assertEquals("Summary text", result)
-            assertEquals(OnDeviceLlmConfig.gemma3SmallIt().summaryMaxNewTokens, backend.lastMaxNewTokens)
-            assertTrue(backend.lastPrompt.orEmpty().contains("<start_of_turn>user"))
+            assertEquals(OnDeviceLlmConfig.defaultAndroid().summaryMaxNewTokens, backend.lastMaxNewTokens)
+            assertTrue(backend.lastPrompt.orEmpty().contains("<|im_start|>user"))
             assertTrue(backend.lastPrompt.orEmpty().contains("Summarize the note"))
             assertTrue(backend.lastPrompt.orEmpty().contains("Long note"))
         }
@@ -65,13 +65,13 @@ class OpenVinoAiLayerTest {
             val result = service.tagTXT("OpenVINO note")
 
             assertEquals(setOf("kotlin", "notes", "ai"), result)
-            assertEquals(OnDeviceLlmConfig.gemma3SmallIt().tagsMaxNewTokens, backend.lastMaxNewTokens)
+            assertEquals(OnDeviceLlmConfig.defaultAndroid().tagsMaxNewTokens, backend.lastMaxNewTokens)
             assertTrue(backend.lastPrompt.orEmpty().contains("Suggest up to"))
             assertTrue(backend.lastPrompt.orEmpty().contains("OpenVINO note"))
         }
 
     @Test
-    fun tagIMGs_returnsEmptySetBecauseVisionIsSeparateFromGemmaLlm() =
+    fun tagIMGs_returnsEmptySetBecauseVisionIsSeparateFromTextLlm() =
         runBlocking {
             val service =
                 OpenVinoNoteAiService(
@@ -85,9 +85,9 @@ class OpenVinoAiLayerTest {
         }
 
     @Test
-    fun gemmaPromptBuilder_trimsLargeInput() {
-        val config = OnDeviceLlmConfig.gemma3SmallIt().copy(maxInputChars = 5)
-        val builder = GemmaPromptBuilder(config)
+    fun noteLlmPromptBuilder_trimsLargeInput() {
+        val config = OnDeviceLlmConfig.defaultAndroid().copy(maxInputChars = 5)
+        val builder = NoteLlmPromptBuilder(config)
 
         val prompt = builder.summaryPrompt("123456789")
 

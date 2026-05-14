@@ -21,7 +21,7 @@ class OpenVinoNoteAiService(
         }
 
     override suspend fun tagIMGs(img: List<String>): Set<String> {
-        // Gemma 3 is a text LLM path. Image tagging stays in a separate AI direction.
+        // This is a text LLM path. Image tagging stays in a separate AI direction.
         return emptySet()
     }
 }

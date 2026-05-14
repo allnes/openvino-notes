@@ -1,7 +1,7 @@
 package com.itlab.ai.di
 
-import com.itlab.ai.GemmaPromptBuilder
 import com.itlab.ai.LlmInferenceBackend
+import com.itlab.ai.NoteLlmPromptBuilder
 import com.itlab.ai.OnDeviceLlmConfig
 import com.itlab.ai.OpenVinoEngine
 import com.itlab.ai.OpenVinoGenAiBackend
@@ -13,8 +13,8 @@ import org.koin.dsl.module
 
 val aiModule =
     module {
-        single { OnDeviceLlmConfig.gemma3SmallIt() }
-        single { GemmaPromptBuilder(get()) }
+        single { OnDeviceLlmConfig.defaultAndroid() }
+        single { NoteLlmPromptBuilder(get()) }
         single<LlmInferenceBackend> { OpenVinoGenAiBackend(androidContext(), get()) }
         single { ResultProcessor() }
         single {

@@ -28,7 +28,7 @@ void LlmEngine::init(
     const std::string& device
 ) {
     if (model_dir.empty()) {
-        throw std::invalid_argument("Gemma model directory is empty.");
+        throw std::invalid_argument("OpenVINO LLM model directory is empty.");
     }
 
     const std::string target_device = device.empty() ? "CPU" : device;

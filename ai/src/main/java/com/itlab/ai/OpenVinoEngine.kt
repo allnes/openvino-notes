@@ -2,8 +2,8 @@ package com.itlab.ai
 
 class OpenVinoEngine(
     private val llmBackend: LlmInferenceBackend = UnavailableLlmBackend(),
-    private val promptBuilder: GemmaPromptBuilder = GemmaPromptBuilder(),
-    private val config: OnDeviceLlmConfig = OnDeviceLlmConfig.gemma3SmallIt(),
+    private val promptBuilder: NoteLlmPromptBuilder = NoteLlmPromptBuilder(),
+    private val config: OnDeviceLlmConfig = OnDeviceLlmConfig.defaultAndroid(),
 ) {
     fun runLlmSummary(text: String): String {
         if (text.isBlank()) return ""

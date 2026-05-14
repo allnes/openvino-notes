@@ -5,6 +5,11 @@ plugins {
 }
 
 val openvinoGenAiAndroidDir = providers.gradleProperty("openvinoGenAiAndroidDir")
+val onDeviceLlmModelId = "Qwen/Qwen2.5-0.5B-Instruct"
+val onDeviceLlmWeightFormat = providers.gradleProperty("onDeviceLlmWeightFormat").orElse("int4")
+val onDeviceLlmPythonVenvDir = layout.buildDirectory.dir("llm/python-venv")
+val onDeviceLlmExportDir = layout.buildDirectory.dir("llm/on-device-llm-openvino")
+val onDeviceLlmAssetDir = layout.projectDirectory.dir("src/main/assets/models/on-device-llm-openvino")
 
 android {
     namespace = "com.itlab.ai"
@@ -72,24 +77,38 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
 }
 
-tasks.register<Exec>("prepareGemma3OpenVinoModel") {
+tasks.register<Exec>("prepareOpenVinoLlmModel") {
     group = "ai"
-    description = "Export google/gemma-3-270m-it to an INT4 OpenVINO GenAI model bundle."
+    description = "Export the bundled on-device LLM to an OpenVINO GenAI model bundle."
 
-    val outputDir = layout.buildDirectory.dir("gemma3/gemma3-270m-it-openvino")
+    inputs.property("modelId", onDeviceLlmModelId)
+    inputs.property("weightFormat", onDeviceLlmWeightFormat)
+    outputs.dir(onDeviceLlmExportDir)
+
     commandLine(
         "python3",
-        "scripts/prepare_gemma3_openvino_model.py",
+        "scripts/prepare_openvino_llm_model.py",
+        "--model-id",
+        onDeviceLlmModelId,
+        "--weight-format",
+        onDeviceLlmWeightFormat.get(),
         "--output",
-        outputDir.get().asFile.absolutePath,
+        onDeviceLlmExportDir.get().asFile.absolutePath,
+        "--venv",
+        onDeviceLlmPythonVenvDir.get().asFile.absolutePath,
+        "--install-deps",
     )
 }
 
-tasks.register<Copy>("stageGemma3OpenVinoAssets") {
+tasks.register<Copy>("stageOpenVinoLlmAssets") {
     group = "ai"
-    description = "Copy the prepared Gemma 3 OpenVINO model into app assets for local packaging."
-    dependsOn("prepareGemma3OpenVinoModel")
+    description = "Copy the prepared OpenVINO LLM model into app assets for local packaging."
+    dependsOn("prepareOpenVinoLlmModel")
 
-    from(layout.buildDirectory.dir("gemma3/gemma3-270m-it-openvino"))
-    into(layout.projectDirectory.dir("src/main/assets/models/gemma3-270m-it-openvino"))
+    from(onDeviceLlmExportDir)
+    into(onDeviceLlmAssetDir)
+}
+
+tasks.named("preBuild") {
+    dependsOn("stageOpenVinoLlmAssets")
 }

@@ -6,7 +6,7 @@ import java.io.IOException
 
 class OpenVinoGenAiBackend(
     context: Context,
-    private val config: OnDeviceLlmConfig = OnDeviceLlmConfig.gemma3SmallIt(),
+    private val config: OnDeviceLlmConfig = OnDeviceLlmConfig.defaultAndroid(),
 ) : LlmInferenceBackend,
     AutoCloseable {
     private val appContext = context.applicationContext
@@ -60,8 +60,8 @@ class OpenVinoGenAiBackend(
 
         if (!assetDirectoryExists(config.assetModelDir)) {
             throw MissingLlmRuntimeException(
-                "Gemma 3 OpenVINO model assets are missing at assets/${config.assetModelDir}. " +
-                    "Run :ai:stageGemma3OpenVinoAssets before packaging a local GenAI build.",
+                "OpenVINO LLM model assets are missing at assets/${config.assetModelDir}. " +
+                    "Gradle should run :ai:stageOpenVinoLlmAssets during preBuild.",
             )
         }
 
