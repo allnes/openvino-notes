@@ -1,0 +1,90 @@
+name: Nightly OpenVINO Android Prebuilds
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 2 * * *"
+
+env:
+  OPENVINO_REF: "2026.1.2"
+  OPENVINO_GENAI_REF: "2026.1.2.0"
+  OPENVINO_CONTRIB_REF: "releases/2026/1"
+  ONETBB_REF: "v2023.0.0"
+  ANDROID_ABI: "arm64-v8a"
+  ANDROID_PLATFORM: "35"
+  ANDROID_NDK_VERSION: "29.0.14206865"
+  BUILD_PARALLELISM: "2"
+  JAVA_VERSION: "21"
+
+jobs:
+  android-arm64:
+    name: Android arm64 prebuild
+    runs-on: macos-15
+    timeout-minutes: 360
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Java
+        uses: actions/setup-java@v5.2.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3.2.2
+        with:
+          packages: platform-tools
+
+      - name: Install Android NDK
+        shell: bash
+        run: yes | sdkmanager "ndk;${ANDROID_NDK_VERSION}"
+
+      - name: Install host tools
+        shell: bash
+        run: brew install ccache ninja
+
+      - name: Restore ccache
+        uses: actions/cache@v4.2.4
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: openvino-android-ccache-${{ runner.os }}-${{ env.OPENVINO_REF }}-${{ env.OPENVINO_GENAI_REF }}-${{ env.OPENVINO_CONTRIB_REF }}-${{ env.ONETBB_REF }}-${{ github.run_id }}
+          restore-keys: |
+            openvino-android-ccache-${{ runner.os }}-${{ env.OPENVINO_REF }}-${{ env.OPENVINO_GENAI_REF }}-${{ env.OPENVINO_CONTRIB_REF }}-${{ env.ONETBB_REF }}-
+            openvino-android-ccache-${{ runner.os }}-
+
+      - name: Build OpenVINO Android prebuild
+        id: build
+        shell: bash
+        env:
+          RUN_ROOT: ${{ runner.temp }}/openvino-android-prebuilds
+          CCACHE_DIR: ${{ runner.temp }}/ccache
+        run: bash .github/scripts/nightly/build_openvino_android_prebuilds.sh
+
+      - name: Upload prebuild artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ${{ steps.build.outputs.artifact_name }}
+          path: ${{ steps.build.outputs.artifact_path }}
+          if-no-files-found: error
+
+      - name: Publish rolling nightly release
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: openvino-android-prebuilds-nightly
+          ARTIFACT_PATH: ${{ steps.build.outputs.artifact_path }}
+        run: |
+          set -euo pipefail
+
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" \
+              --title "OpenVINO Android Prebuilds Nightly" \
+              --prerelease \
+              --notes "Rolling nightly Android arm64 OpenVINO prebuilds."
+          fi
+
+          gh release upload "$RELEASE_TAG" "$ARTIFACT_PATH" --clobber
