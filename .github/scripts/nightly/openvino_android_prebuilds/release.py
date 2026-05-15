@@ -8,6 +8,11 @@ from github.GitRelease import GitRelease
 from github.Repository import Repository
 
 
+DEFAULT_RELEASE_TAG = "openvino-android-prebuilds-debug"
+DEFAULT_RELEASE_TITLE = "OpenVINO Android Prebuilds Debug"
+DEFAULT_RELEASE_NOTES_PREFIX = "Rolling debug Android arm64 OpenVINO prebuilds."
+
+
 def _github_repository() -> Repository:
     token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     repository_name = os.environ.get("GITHUB_REPOSITORY")
@@ -109,3 +114,16 @@ def publish_rolling_prerelease(
 
     for prebuild in prebuilds:
         _upload_asset_clobber(release, prebuild)
+
+
+def publish_release_from_env() -> None:
+    artifacts_dir = os.environ.get("ARTIFACTS_DIR", "")
+    if not artifacts_dir:
+        raise SystemExit("ARTIFACTS_DIR must be set for publish-release stage.")
+
+    publish_rolling_prerelease(
+        tag=os.environ.get("RELEASE_TAG", DEFAULT_RELEASE_TAG),
+        title=os.environ.get("RELEASE_TITLE", DEFAULT_RELEASE_TITLE),
+        artifacts_dir=Path(artifacts_dir),
+        notes_prefix=os.environ.get("RELEASE_NOTES_PREFIX", DEFAULT_RELEASE_NOTES_PREFIX),
+    )

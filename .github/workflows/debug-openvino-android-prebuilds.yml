@@ -64,39 +64,39 @@ jobs:
             openvino-android-ccache-${{ runner.os }}-
 
       - name: Prepare build directories
-        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py prepare
+        run: python3 .github/scripts/nightly/prebuild.py prepare
 
       - name: Checkout source dependencies
-        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py checkout-sources
+        run: python3 .github/scripts/nightly/prebuild.py checkout-sources
 
       - name: Record source manifest
-        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py record-source-manifest
+        run: python3 .github/scripts/nightly/prebuild.py record-source-manifest
 
       - name: Build oneTBB
-        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py build-onetbb
+        run: python3 .github/scripts/nightly/prebuild.py build-onetbb
 
       - name: Configure OpenVINO
-        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py configure-openvino
+        run: python3 .github/scripts/nightly/prebuild.py configure-openvino
 
       - name: Build OpenVINO Runtime
-        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py build-openvino-runtime
+        run: python3 .github/scripts/nightly/prebuild.py build-openvino-runtime
 
       - name: Build OpenVINO GenAI
-        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py build-openvino-genai
+        run: python3 .github/scripts/nightly/prebuild.py build-openvino-genai
 
       - name: Build OpenVINO Java API
-        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py build-openvino-java-api
+        run: python3 .github/scripts/nightly/prebuild.py build-openvino-java-api
 
       - name: Install OpenVINO runtime
-        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py install-openvino
+        run: python3 .github/scripts/nightly/prebuild.py install-openvino
 
       - name: Package Android prebuild
         id: package
-        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py package-prebuild
+        run: python3 .github/scripts/nightly/prebuild.py package-prebuild
 
       - name: Show ccache stats
         if: always()
-        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py ccache-stats
+        run: python3 .github/scripts/nightly/prebuild.py ccache-stats
 
       - name: Upload prebuild artifact
         uses: actions/upload-artifact@v7.0.1
@@ -113,4 +113,4 @@ jobs:
           RELEASE_TAG: openvino-android-prebuilds-debug
           RELEASE_TITLE: OpenVINO Android Prebuilds Debug
           RELEASE_NOTES_PREFIX: Rolling debug Android arm64 OpenVINO prebuilds.
-        run: python3 .github/scripts/nightly/publish_openvino_android_prebuilds.py
+        run: python3 .github/scripts/nightly/prebuild.py publish-release

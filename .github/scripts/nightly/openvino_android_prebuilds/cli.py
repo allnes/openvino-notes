@@ -15,6 +15,7 @@ from .build_steps import (
 )
 from .common import BuildConfig
 from .package import ccache_stats, package_prebuild
+from .release import publish_release_from_env
 from .sources import checkout_sources, record_source_manifest
 from .workspace import prepare
 
@@ -32,6 +33,7 @@ class Stage(str, Enum):
     install_openvino = "install-openvino"
     package_prebuild = "package-prebuild"
     ccache_stats = "ccache-stats"
+    publish_release = "publish-release"
 
 
 STAGES = {
@@ -58,6 +60,10 @@ def run_all(config: BuildConfig) -> None:
 
 
 def run_stage(stage: Annotated[Stage, typer.Argument(help="Build stage to execute.")] = Stage.all) -> None:
+    if stage == Stage.publish_release:
+        publish_release_from_env()
+        return
+
     config = BuildConfig.from_env()
     if stage == Stage.all:
         run_all(config)
