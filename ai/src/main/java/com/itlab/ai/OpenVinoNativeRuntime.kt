@@ -123,20 +123,35 @@ internal class OpenVinoNativeRuntime private constructor(
                 throw MissingLlmRuntimeException("OpenVINO runtime assets are missing at assets/$assetPath")
             }
 
-            children.forEach { child ->
-                val childAssetPath = "$assetPath/$child"
-                val childTarget = targetDir.resolve(child)
-                val nestedChildren = context.assets.list(childAssetPath)
-                if (nestedChildren.isNullOrEmpty()) {
-                    context.assets.open(childAssetPath).use { input ->
-                        childTarget.parentFile?.mkdirs()
-                        childTarget.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                } else {
-                    childTarget.mkdirs()
-                    copyAssetDirectory(context, childAssetPath, childTarget)
+            children.forEach { child -> copyAssetChild(context, assetPath, targetDir, child) }
+        }
+
+        private fun copyAssetChild(
+            context: Context,
+            assetPath: String,
+            targetDir: File,
+            child: String,
+        ) {
+            val childAssetPath = "$assetPath/$child"
+            val childTarget = targetDir.resolve(child)
+            val nestedChildren = context.assets.list(childAssetPath)
+            if (nestedChildren.isNullOrEmpty()) {
+                copyAssetFile(context, childAssetPath, childTarget)
+            } else {
+                childTarget.mkdirs()
+                copyAssetDirectory(context, childAssetPath, childTarget)
+            }
+        }
+
+        private fun copyAssetFile(
+            context: Context,
+            assetPath: String,
+            targetFile: File,
+        ) {
+            context.assets.open(assetPath).use { input ->
+                targetFile.parentFile?.mkdirs()
+                targetFile.outputStream().use { output ->
+                    input.copyTo(output)
                 }
             }
         }

@@ -18,7 +18,7 @@ class OpenVinoGenAiBackend(
         maxNewTokens: Int,
     ): String {
         val activeBridge = bridge ?: createBridge()
-        val response = activeBridge.generate(preparePrompt(prompt), maxNewTokens)
+        val response = activeBridge.generate(preparePrompt(prompt, config), maxNewTokens)
         return if (config.includeReasoningOutput) {
             response
         } else {
@@ -64,14 +64,14 @@ class OpenVinoGenAiBackend(
 
     private fun ensureModelDirectory(): File {
         val targetDir = File(appContext.filesDir, "models/${config.modelDirName}")
-        if (!assetDirectoryExists(config.assetModelDir)) {
+        if (!appContext.assetDirectoryExists(config.assetModelDir)) {
             throw MissingLlmRuntimeException(
                 "OpenVINO LLM model assets are missing at assets/${config.assetModelDir}. " +
                     "Gradle should run :ai:stageOpenVinoLlmAssets during preBuild.",
             )
         }
 
-        val assetMarker = readAssetText("${config.assetModelDir}/$MODEL_MARKER_FILE")
+        val assetMarker = appContext.readAssetText("${config.assetModelDir}/$MODEL_MARKER_FILE")
         val targetMarker = targetDir.resolve(MODEL_MARKER_FILE).takeIf { it.isFile }?.readText()
         if (targetDir.exists() && !targetDir.list().isNullOrEmpty() && assetMarker == targetMarker) {
             return targetDir
@@ -79,89 +79,103 @@ class OpenVinoGenAiBackend(
 
         targetDir.deleteRecursively()
         targetDir.mkdirs()
-        copyAssetDirectory(config.assetModelDir, targetDir)
+        appContext.copyAssetDirectory(config.assetModelDir, targetDir)
         File(appContext.cacheDir, config.cacheDirName).deleteRecursively()
         return targetDir
     }
 
-    private fun assetDirectoryExists(assetPath: String): Boolean =
-        try {
-            !appContext.assets.list(assetPath).isNullOrEmpty()
-        } catch (_: IOException) {
-            false
-        }
-
-    private fun readAssetText(assetPath: String): String? =
-        try {
-            appContext
-                .assets
-                .open(assetPath)
-                .bufferedReader()
-                .use { it.readText() }
-        } catch (_: IOException) {
-            null
-        }
-
-    private fun copyAssetDirectory(
-        assetPath: String,
-        targetDir: File,
-    ) {
-        val children =
-            appContext.assets.list(assetPath)
-                ?: throw MissingLlmRuntimeException("Unable to list model asset directory: $assetPath")
-
-        children.forEach { child ->
-            val childAssetPath = "$assetPath/$child"
-            val childTarget = File(targetDir, child)
-            val nestedChildren = appContext.assets.list(childAssetPath)
-            if (nestedChildren.isNullOrEmpty()) {
-                appContext.assets.open(childAssetPath).use { input ->
-                    childTarget.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
-                }
-            } else {
-                childTarget.mkdirs()
-                copyAssetDirectory(childAssetPath, childTarget)
-            }
-        }
-    }
-
-    private fun preparePrompt(prompt: String): String {
-        if (config.includeReasoningOutput || prompt.isBlank()) {
-            return prompt
-        }
-
-        val hint = config.disableReasoningPromptHint.trim()
-        if (hint.isEmpty()) {
-            return prompt
-        }
-
-        val trimmedPrompt = prompt.trimEnd()
-        return if (trimmedPrompt.endsWith(hint, ignoreCase = true)) {
-            prompt
-        } else {
-            "$trimmedPrompt\n$hint"
-        }
-    }
-
-    private fun stripReasoningSections(response: String): String {
-        if (response.isBlank()) {
-            return response
-        }
-
-        return THINKING_TAG_REGEX
-            .replace(THINKING_BLOCK_REGEX.replace(response, ""), "")
-            .trim()
-    }
-
     private companion object {
         const val MODEL_MARKER_FILE = ".openvino_llm_export_complete"
-        val THINKING_BLOCK_REGEX =
-            Regex(
-                pattern = "<think>.*?</think>",
-                options = setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
-            )
-        val THINKING_TAG_REGEX = Regex("</?think>", RegexOption.IGNORE_CASE)
     }
 }
+
+private fun Context.assetDirectoryExists(assetPath: String): Boolean =
+    try {
+        !assets.list(assetPath).isNullOrEmpty()
+    } catch (_: IOException) {
+        false
+    }
+
+private fun Context.readAssetText(assetPath: String): String? =
+    try {
+        assets
+            .open(assetPath)
+            .bufferedReader()
+            .use { it.readText() }
+    } catch (_: IOException) {
+        null
+    }
+
+private fun Context.copyAssetDirectory(
+    assetPath: String,
+    targetDir: File,
+) {
+    val children =
+        assets.list(assetPath)
+            ?: throw MissingLlmRuntimeException("Unable to list model asset directory: $assetPath")
+
+    children.forEach { child -> copyAssetChild(assetPath, targetDir, child) }
+}
+
+private fun Context.copyAssetChild(
+    assetPath: String,
+    targetDir: File,
+    child: String,
+) {
+    val childAssetPath = "$assetPath/$child"
+    val childTarget = File(targetDir, child)
+    val nestedChildren = assets.list(childAssetPath)
+    if (nestedChildren.isNullOrEmpty()) {
+        copyAssetFile(childAssetPath, childTarget)
+    } else {
+        childTarget.mkdirs()
+        copyAssetDirectory(childAssetPath, childTarget)
+    }
+}
+
+private fun Context.copyAssetFile(
+    assetPath: String,
+    targetFile: File,
+) {
+    assets.open(assetPath).use { input ->
+        targetFile.outputStream().use { output ->
+            input.copyTo(output)
+        }
+    }
+}
+
+private fun preparePrompt(
+    prompt: String,
+    config: OnDeviceLlmConfig,
+): String {
+    val hint = config.disableReasoningPromptHint.trim()
+    val trimmedPrompt = prompt.trimEnd()
+    val shouldAppendHint =
+        !config.includeReasoningOutput &&
+            prompt.isNotBlank() &&
+            hint.isNotEmpty() &&
+            !trimmedPrompt.endsWith(hint, ignoreCase = true)
+
+    return if (shouldAppendHint) {
+        "$trimmedPrompt\n$hint"
+    } else {
+        prompt
+    }
+}
+
+private fun stripReasoningSections(response: String): String {
+    if (response.isBlank()) {
+        return response
+    }
+
+    return THINKING_TAG_REGEX
+        .replace(THINKING_BLOCK_REGEX.replace(response, ""), "")
+        .trim()
+}
+
+private val THINKING_BLOCK_REGEX =
+    Regex(
+        pattern = "<think>.*?</think>",
+        options = setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+    )
+private val THINKING_TAG_REGEX = Regex("</?think>", RegexOption.IGNORE_CASE)
