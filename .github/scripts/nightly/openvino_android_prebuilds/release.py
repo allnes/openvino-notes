@@ -1,19 +1,34 @@
 from __future__ import annotations
 
 import os
-import subprocess
 from pathlib import Path
 
-from .common import run
+from github import Auth, Github, GithubException, UnknownObjectException
+from github.GitRelease import GitRelease
+from github.Repository import Repository
 
 
-def _release_exists(tag: str) -> bool:
-    return subprocess.run(
-        ["gh", "release", "view", tag],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    ).returncode == 0
+def _github_repository() -> Repository:
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    repository_name = os.environ.get("GITHUB_REPOSITORY")
+    if not token:
+        raise SystemExit("GH_TOKEN or GITHUB_TOKEN must be set to publish a release.")
+    if not repository_name:
+        raise SystemExit("GITHUB_REPOSITORY must be set to publish a release.")
+
+    try:
+        return Github(auth=Auth.Token(token)).get_repo(repository_name)
+    except GithubException as error:
+        raise SystemExit(f"Failed to open GitHub repository {repository_name}: {error}") from error
+
+
+def _get_release(repository: Repository, tag: str) -> GitRelease | None:
+    try:
+        return repository.get_release(tag)
+    except UnknownObjectException:
+        return None
+    except GithubException as error:
+        raise SystemExit(f"Failed to read GitHub release {tag}: {error}") from error
 
 
 def _release_notes(prefix: str) -> str:
@@ -40,6 +55,18 @@ def _release_notes(prefix: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _upload_asset_clobber(release: GitRelease, prebuild: Path) -> None:
+    try:
+        for asset in release.get_assets():
+            if asset.name == prebuild.name:
+                print(f"Deleting existing release asset: {asset.name}", flush=True)
+                asset.delete_asset()
+        print(f"Uploading release asset: {prebuild}", flush=True)
+        release.upload_asset(str(prebuild), name=prebuild.name, content_type="application/zip")
+    except GithubException as error:
+        raise SystemExit(f"Failed to upload release asset {prebuild}: {error}") from error
+
+
 def publish_rolling_prerelease(
     *,
     tag: str,
@@ -52,35 +79,33 @@ def publish_rolling_prerelease(
         raise SystemExit(f"No prebuild zip artifacts found in {artifacts_dir}")
 
     notes_file = artifacts_dir / "release-notes.md"
-    notes_file.write_text(_release_notes(notes_prefix), encoding="utf-8")
+    notes = _release_notes(notes_prefix)
+    notes_file.write_text(notes, encoding="utf-8")
 
-    if _release_exists(tag):
-        run(
-            [
-                "gh",
-                "release",
-                "edit",
-                tag,
-                "--title",
-                title,
-                "--prerelease",
-                "--notes-file",
-                str(notes_file),
-            ]
-        )
-    else:
-        run(
-            [
-                "gh",
-                "release",
-                "create",
-                tag,
-                "--title",
-                title,
-                "--prerelease",
-                "--notes-file",
-                str(notes_file),
-            ]
-        )
+    repository = _github_repository()
+    release = _get_release(repository, tag)
+    try:
+        if release is None:
+            print(f"Creating GitHub prerelease: {tag}", flush=True)
+            release = repository.create_git_release(
+                tag=tag,
+                name=title,
+                message=notes,
+                prerelease=True,
+                make_latest="false",
+            )
+        else:
+            print(f"Updating GitHub prerelease: {tag}", flush=True)
+            release = release.update_release(
+                name=title,
+                message=notes,
+                draft=False,
+                prerelease=True,
+                tag_name=tag,
+                make_latest="false",
+            )
+    except GithubException as error:
+        raise SystemExit(f"Failed to create or update GitHub release {tag}: {error}") from error
 
-    run(["gh", "release", "upload", tag, *[str(prebuild) for prebuild in prebuilds], "--clobber"])
+    for prebuild in prebuilds:
+        _upload_asset_clobber(release, prebuild)

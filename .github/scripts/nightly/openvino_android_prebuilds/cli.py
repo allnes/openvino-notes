@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-import argparse
+from enum import Enum
+from typing import Annotated
+
+import typer
 
 from .build_steps import (
     build_onetbb,
@@ -16,37 +19,52 @@ from .sources import checkout_sources, record_source_manifest
 from .workspace import prepare
 
 
+class Stage(str, Enum):
+    all = "all"
+    prepare = "prepare"
+    checkout_sources = "checkout-sources"
+    record_source_manifest = "record-source-manifest"
+    build_onetbb = "build-onetbb"
+    configure_openvino = "configure-openvino"
+    build_openvino_runtime = "build-openvino-runtime"
+    build_openvino_genai = "build-openvino-genai"
+    build_openvino_java_api = "build-openvino-java-api"
+    install_openvino = "install-openvino"
+    package_prebuild = "package-prebuild"
+    ccache_stats = "ccache-stats"
+
+
 STAGES = {
-    "prepare": prepare,
-    "checkout-sources": checkout_sources,
-    "record-source-manifest": record_source_manifest,
-    "build-onetbb": build_onetbb,
-    "configure-openvino": configure_openvino,
-    "build-openvino-runtime": build_openvino_runtime,
-    "build-openvino-genai": build_openvino_genai,
-    "build-openvino-java-api": build_openvino_java_api,
-    "install-openvino": install_openvino,
-    "package-prebuild": package_prebuild,
-    "ccache-stats": ccache_stats,
+    Stage.prepare: prepare,
+    Stage.checkout_sources: checkout_sources,
+    Stage.record_source_manifest: record_source_manifest,
+    Stage.build_onetbb: build_onetbb,
+    Stage.configure_openvino: configure_openvino,
+    Stage.build_openvino_runtime: build_openvino_runtime,
+    Stage.build_openvino_genai: build_openvino_genai,
+    Stage.build_openvino_java_api: build_openvino_java_api,
+    Stage.install_openvino: install_openvino,
+    Stage.package_prebuild: package_prebuild,
+    Stage.ccache_stats: ccache_stats,
 }
 
 
 def run_all(config: BuildConfig) -> None:
-    for stage in STAGES:
-        if stage == "ccache-stats":
+    for stage, action in STAGES.items():
+        if stage == Stage.ccache_stats:
             continue
-        STAGES[stage](config)
+        action(config)
     ccache_stats(config)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("stage", nargs="?", default="all", choices=["all", *STAGES.keys()])
-    args = parser.parse_args()
-
+def run_stage(stage: Annotated[Stage, typer.Argument(help="Build stage to execute.")] = Stage.all) -> None:
     config = BuildConfig.from_env()
-    if args.stage == "all":
+    if stage == Stage.all:
         run_all(config)
         return
 
-    STAGES[args.stage](config)
+    STAGES[stage](config)
+
+
+def main() -> None:
+    typer.run(run_stage)

@@ -1,53 +1,74 @@
 from __future__ import annotations
 
 import os
-import shutil
-import subprocess
 import sys
-from dataclasses import dataclass
 from pathlib import Path
+from subprocess import PIPE, STDOUT
+
+from plumbum import local
+from plumbum.commands import CommandNotFound, ProcessExecutionError
+from pydantic import AliasChoices, Field, ValidationError, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 SCRIPT_ROOT = Path(__file__).resolve().parents[4]
 
 
-def getenv(name: str, default: str) -> str:
-    return os.environ.get(name, default)
+def default_run_root() -> Path:
+    runner_temp = os.environ.get("RUNNER_TEMP", "")
+    if runner_temp:
+        return Path(runner_temp) / "openvino-android-prebuilds"
+    return SCRIPT_ROOT / ".tmp" / "openvino-android-prebuilds"
 
 
 def require_command(name: str) -> None:
-    if shutil.which(name) is None:
-        raise SystemExit(f"Required command is missing: {name}")
+    try:
+        local.which(name)
+    except CommandNotFound as error:
+        raise SystemExit(f"Required command is missing: {name}") from error
+
+
+def _command(args: list[str]):
+    if not args:
+        raise SystemExit("Command argument list must not be empty.")
+
+    try:
+        return local[args[0]][args[1:]]
+    except CommandNotFound as error:
+        raise SystemExit(f"Required command is missing: {args[0]}") from error
 
 
 def run(args: list[str], *, log: Path | None = None, cwd: Path | None = None) -> None:
     print("+ " + " ".join(args), flush=True)
-    if log is None:
-        subprocess.run(args, cwd=cwd, check=True)
-        return
+    command = _command(args)
+    log_file = None
 
-    log.parent.mkdir(parents=True, exist_ok=True)
-    with log.open("w", encoding="utf-8") as log_file:
-        process = subprocess.Popen(
-            args,
-            cwd=cwd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
+    try:
+        if log is not None:
+            log.parent.mkdir(parents=True, exist_ok=True)
+            log_file = log.open("w", encoding="utf-8")
+
+        process = command.popen(cwd=str(cwd) if cwd else None, stdout=PIPE, stderr=STDOUT, text=True, bufsize=1)
         assert process.stdout is not None
         for line in process.stdout:
             sys.stdout.write(line)
-            log_file.write(line)
+            if log_file is not None:
+                log_file.write(line)
         return_code = process.wait()
+    finally:
+        if log_file is not None:
+            log_file.close()
 
     if return_code != 0:
-        raise subprocess.CalledProcessError(return_code, args)
+        raise SystemExit(f"Command failed with exit code {return_code}: {' '.join(args)}")
 
 
 def command_output(args: list[str]) -> str:
-    return subprocess.check_output(args, text=True).strip()
+    try:
+        _, stdout, _ = _command(args).run()
+    except ProcessExecutionError as error:
+        raise SystemExit(f"Command failed with exit code {error.retcode}: {' '.join(args)}") from error
+    return stdout.strip()
 
 
 def write_env_file(path: str | None, entries: dict[str, str]) -> None:
@@ -67,65 +88,53 @@ def append_path_file(path: str | None, value: Path) -> None:
         path_file.write(f"{value}\n")
 
 
-@dataclass(frozen=True)
-class BuildConfig:
-    openvino_ref: str
-    openvino_genai_ref: str
-    openvino_contrib_ref: str
-    onetbb_ref: str
-    openvino_repo: str
-    openvino_contrib_repo: str
-    openvino_genai_repo: str
-    onetbb_repo: str
-    android_abi: str
-    android_platform: str
-    android_ndk_version: str
-    android_sdk_root: Path
-    android_ndk: Path
-    run_root: Path
-    ccache_dir: Path
+class BuildConfig(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="", extra="ignore", populate_by_name=True)
+
+    openvino_ref: str = Field("android-mbind-compat", validation_alias="OPENVINO_REF")
+    openvino_genai_ref: str = Field("master", validation_alias="OPENVINO_GENAI_REF")
+    openvino_contrib_ref: str = Field("master", validation_alias="OPENVINO_CONTRIB_REF")
+    onetbb_ref: str = Field("v2023.0.0", validation_alias="ONETBB_REF")
+    openvino_repo: str = Field("https://github.com/embedded-dev-research/openvino.git", validation_alias="OPENVINO_REPO")
+    openvino_contrib_repo: str = Field(
+        "https://github.com/openvinotoolkit/openvino_contrib.git",
+        validation_alias="OPENVINO_CONTRIB_REPO",
+    )
+    openvino_genai_repo: str = Field(
+        "https://github.com/openvinotoolkit/openvino.genai.git",
+        validation_alias="OPENVINO_GENAI_REPO",
+    )
+    onetbb_repo: str = Field("https://github.com/uxlfoundation/oneTBB.git", validation_alias="ONETBB_REPO")
+    android_abi: str = Field("arm64-v8a", validation_alias="ANDROID_ABI")
+    android_platform: str = Field("35", validation_alias="ANDROID_PLATFORM")
+    android_ndk_version: str = Field("29.0.14206865", validation_alias="ANDROID_NDK_VERSION")
+    android_sdk_root: Path = Field(validation_alias=AliasChoices("ANDROID_SDK_ROOT", "ANDROID_HOME"))
+    android_ndk: Path | None = Field(default=None, validation_alias="ANDROID_NDK")
+    run_root: Path = Field(default_factory=default_run_root, validation_alias="RUN_ROOT")
+    ccache_dir: Path | None = Field(default=None, validation_alias="CCACHE_DIR")
+
+    @model_validator(mode="after")
+    def validate_paths(self) -> BuildConfig:
+        versioned_ndk = self.android_sdk_root / "ndk" / self.android_ndk_version
+        self.android_ndk = versioned_ndk if versioned_ndk.is_dir() else self.android_ndk or versioned_ndk
+        if not self.android_ndk.is_dir():
+            raise ValueError(f"Android NDK not found: {self.android_ndk}")
+
+        if str(self.run_root) in {"", "/"}:
+            raise ValueError(f"RUN_ROOT must point to a disposable build directory, got: '{self.run_root}'")
+
+        if self.ccache_dir is None:
+            runner_temp = os.environ.get("RUNNER_TEMP", "")
+            self.ccache_dir = (Path(runner_temp) if runner_temp else self.run_root) / "ccache"
+
+        return self
 
     @classmethod
     def from_env(cls) -> BuildConfig:
-        runner_temp = getenv("RUNNER_TEMP", "")
-        default_root = (
-            Path(runner_temp) / "openvino-android-prebuilds"
-            if runner_temp
-            else SCRIPT_ROOT / ".tmp" / "openvino-android-prebuilds"
-        )
-        android_sdk = getenv("ANDROID_SDK_ROOT", getenv("ANDROID_HOME", ""))
-        if not android_sdk:
-            raise SystemExit("ANDROID_SDK_ROOT or ANDROID_HOME must be set.")
-
-        android_ndk_version = getenv("ANDROID_NDK_VERSION", "29.0.14206865")
-        versioned_ndk = Path(android_sdk) / "ndk" / android_ndk_version
-        android_ndk = versioned_ndk if versioned_ndk.is_dir() else Path(getenv("ANDROID_NDK", str(versioned_ndk)))
-        if not android_ndk.is_dir():
-            raise SystemExit(f"Android NDK not found: {android_ndk}")
-
-        run_root = Path(getenv("RUN_ROOT", str(default_root)))
-        if str(run_root) in {"", "/"}:
-            raise SystemExit(f"RUN_ROOT must point to a disposable build directory, got: '{run_root}'")
-
-        ccache_dir = Path(getenv("CCACHE_DIR", str((Path(runner_temp) if runner_temp else run_root) / "ccache")))
-
-        return cls(
-            openvino_ref=getenv("OPENVINO_REF", "android-mbind-compat"),
-            openvino_genai_ref=getenv("OPENVINO_GENAI_REF", "master"),
-            openvino_contrib_ref=getenv("OPENVINO_CONTRIB_REF", "master"),
-            onetbb_ref=getenv("ONETBB_REF", "v2023.0.0"),
-            openvino_repo=getenv("OPENVINO_REPO", "https://github.com/embedded-dev-research/openvino.git"),
-            openvino_contrib_repo=getenv("OPENVINO_CONTRIB_REPO", "https://github.com/openvinotoolkit/openvino_contrib.git"),
-            openvino_genai_repo=getenv("OPENVINO_GENAI_REPO", "https://github.com/openvinotoolkit/openvino.genai.git"),
-            onetbb_repo=getenv("ONETBB_REPO", "https://github.com/uxlfoundation/oneTBB.git"),
-            android_abi=getenv("ANDROID_ABI", "arm64-v8a"),
-            android_platform=getenv("ANDROID_PLATFORM", "35"),
-            android_ndk_version=android_ndk_version,
-            android_sdk_root=Path(android_sdk),
-            android_ndk=android_ndk,
-            run_root=run_root,
-            ccache_dir=ccache_dir,
-        )
+        try:
+            return cls()
+        except ValidationError as error:
+            raise SystemExit(f"Invalid build environment:\n{error}") from error
 
     @property
     def src_dir(self) -> Path:
