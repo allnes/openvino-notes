@@ -102,6 +102,14 @@ subprojects {
                         "com.itlab.notes.ui.notes.*",
                         "com.itlab.notes.ui.theme.*",
                     )
+                    if (name == "ai") {
+                        classes(
+                            "com.itlab.ai.NativeLlmBridge",
+                            "com.itlab.ai.OpenVinoGenAiBackend",
+                            "com.itlab.ai.OpenVinoNativeRuntime*",
+                            "com.itlab.ai.di.*",
+                        )
+                    }
                 }
             }
             verify {
