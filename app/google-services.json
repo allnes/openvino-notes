@@ -1,0 +1,23 @@
+﻿{
+  "project_info": {
+    "project_number": "123456789",
+    "project_id": "mock-id"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123456789:android:mock",
+        "android_client_info": {
+          "package_name": "com.itlab.notes"
+        }
+      },
+      "api_key": [
+        {
+          "current_key": "mock-key"
+        }
+      ],
+      "services": {}
+    }
+  ],
+  "configuration_version": "1"
+}

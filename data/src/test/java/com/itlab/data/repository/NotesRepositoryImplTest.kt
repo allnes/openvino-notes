@@ -30,12 +30,14 @@ class NotesRepositoryImplTest {
     private val mediaDao = mockk<MediaDao>(relaxed = true)
     private val mapper = NoteMapper()
     private val repository = NotesRepositoryImpl(noteDao, mediaDao, mapper)
+    private val testUserId = "test_user_1"
 
     @Test
     fun `createNote inserts note and media if exists`() =
         runTest {
             val note =
                 Note(
+                    userId = testUserId,
                     id = "note_1",
                     title = "Test",
                     contentItems = emptyList(),
@@ -54,6 +56,7 @@ class NotesRepositoryImplTest {
         runTest {
             val note =
                 Note(
+                    userId = testUserId,
                     id = "note_1",
                     title = "Updated",
                     createdAt = Clock.System.now(),
@@ -113,6 +116,7 @@ class NotesRepositoryImplTest {
 
             val noteWithMedia =
                 Note(
+                    userId = testUserId,
                     id = "note_123",
                     title = "Note with Image",
                     contentItems = listOf(imageItem),
@@ -130,7 +134,13 @@ class NotesRepositoryImplTest {
     @Test
     fun `updateNote without media should only call update and delete`() =
         runTest {
-            val noteWithoutMedia = Note(id = "2", title = "No Media", contentItems = emptyList())
+            val noteWithoutMedia =
+                Note(
+                    userId = testUserId,
+                    id = "2",
+                    title = "No Media",
+                    contentItems = emptyList(),
+                )
 
             repository.updateNote(noteWithoutMedia)
 
@@ -230,6 +240,7 @@ class NotesRepositoryImplTest {
                 )
             val noteWithMedia =
                 Note(
+                    userId = testUserId,
                     id = "note_with_pic",
                     title = "Vacation",
                     contentItems = listOf(imageItem),

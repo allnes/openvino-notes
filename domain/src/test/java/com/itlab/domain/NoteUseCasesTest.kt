@@ -26,6 +26,8 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class NoteUseCasesTest {
+    private val testUserId = "test_user_1"
+
     private class FakeNotesRepo : NotesRepository {
         private val store = mutableMapOf<String, Note>()
         private val flow = MutableStateFlow<List<Note>>(emptyList())
@@ -85,7 +87,7 @@ class NoteUseCasesTest {
             val delete = DeleteNoteUseCase(repo)
             val get = GetNoteUseCase(repo)
 
-            val note = Note(title = "A")
+            val note = Note(id = "n1", title = "A", userId = testUserId)
 
             val id = create(note).getOrThrow()
 
@@ -115,7 +117,7 @@ class NoteUseCasesTest {
             val folder = NoteFolder(id = "f1", name = "Folder")
             folderRepo.createFolder(folder)
 
-            val note = Note(title = "Note")
+            val note = Note(id = "n1", title = "Note", userId = testUserId)
 
             val noteId = createNote(note).getOrThrow()
 
@@ -132,7 +134,8 @@ class NoteUseCasesTest {
             val observe = ObserveNotesUseCase(repo)
             val create = CreateNoteUseCase(repo)
 
-            create(Note(title = "Test")).getOrThrow()
+            create(Note(id = "n1", title = "Test", userId = testUserId)).getOrThrow()
+
             val list = observe().first()
 
             assertEquals(1, list.size)
@@ -149,6 +152,7 @@ class NoteUseCasesTest {
                     id = "n1",
                     title = "Test",
                     tags = setOf("old"),
+                    userId = testUserId,
                 )
             repo.createNote(note)
 
@@ -181,6 +185,7 @@ class NoteUseCasesTest {
                     id = "n2",
                     title = "Test",
                     tags = setOf("old", "remove-me"),
+                    userId = testUserId,
                 )
             repo.createNote(note)
 
@@ -215,6 +220,7 @@ class NoteUseCasesTest {
                     tags = setOf("kotlin"),
                     isFavorite = true,
                     summary = "summary",
+                    userId = testUserId,
                 )
             repo.createNote(original)
 
@@ -241,6 +247,7 @@ class NoteUseCasesTest {
                 Note(
                     id = "n4",
                     title = "   ",
+                    userId = testUserId,
                 )
             repo.createNote(original)
 
@@ -273,6 +280,7 @@ class NoteUseCasesTest {
                     id = "n5",
                     title = "A",
                     isFavorite = true,
+                    userId = testUserId,
                 ),
             )
             repo.createNote(
@@ -280,6 +288,7 @@ class NoteUseCasesTest {
                     id = "n6",
                     title = "B",
                     isFavorite = false,
+                    userId = testUserId,
                 ),
             )
 
@@ -300,6 +309,7 @@ class NoteUseCasesTest {
                     id = "n7",
                     title = "Fav",
                     isFavorite = false,
+                    userId = testUserId,
                 )
             repo.createNote(note)
 
@@ -329,8 +339,8 @@ class NoteUseCasesTest {
             val repo = FakeNotesRepo()
             val useCase = GetNotesByTagUseCase(repo)
 
-            repo.createNote(Note(id = "n10", tags = setOf("work", "urgent")))
-            repo.createNote(Note(id = "n11", tags = setOf("personal")))
+            repo.createNote(Note(id = "n10", tags = setOf("work", "urgent"), userId = testUserId))
+            repo.createNote(Note(id = "n11", tags = setOf("personal"), userId = testUserId))
 
             val result = useCase("URGENT").first()
 
@@ -348,6 +358,7 @@ class NoteUseCasesTest {
                 Note(
                     id = "n8",
                     title = "Планы на отпуск",
+                    userId = testUserId,
                 ),
             )
             repo.createNote(
@@ -355,6 +366,7 @@ class NoteUseCasesTest {
                     id = "n9",
                     title = "Покупки",
                     contentItems = listOf(ContentItem.Text(text = "Купить молоко и хлеб")),
+                    userId = testUserId,
                 ),
             )
 
@@ -369,7 +381,7 @@ class NoteUseCasesTest {
         runBlocking {
             val repo = FakeNotesRepo()
             val useCase = AddTagUseCase(repo)
-            repo.createNote(Note(id = "n1", title = "Test", tags = emptySet()))
+            repo.createNote(Note(id = "n1", title = "Test", tags = emptySet(), userId = testUserId))
 
             useCase("n1", "  kotlin  ")
 

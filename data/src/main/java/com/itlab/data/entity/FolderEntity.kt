@@ -10,5 +10,7 @@ data class FolderEntity(
     val name: String,
     val createdAt: Instant,
     val updatedAt: Instant,
+    val isSynced: Boolean = false,
+    val isDeleted: Boolean = false,
     val metadata: Map<String, String>,
 )

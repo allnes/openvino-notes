@@ -17,6 +17,12 @@ android {
         consumerProguardFiles("consumer-rules.pro")
     }
 
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -35,6 +41,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    lint {
+        lintConfig = file("lint.xml")
+        abortOnError = true
+    }
     compileSdkMinor = 0
 }
 
@@ -44,17 +55,36 @@ kotlin {
     }
 }
 
+kover {
+    reports {
+        filters {
+            excludes {
+                classes("*_Impl*", "*_Serializer*", "*_Companion*")
+                classes("*.databinding.*", "*.BuildConfig*")
+            }
+        }
+    }
+}
+
 dependencies {
+    implementation(platform(libs.firebase.bom))
     implementation(project(":domain"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.firebase.firestore)
+    implementation(libs.firebase.storage)
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.ui.auth)
+    implementation(libs.androidx.work.runtime.ktx)
     ksp(libs.room.compiler)
     implementation(libs.kotlinx.datetime)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.timber)
+    implementation(libs.firebase.analytics)
     implementation(libs.koin.android)
     testImplementation(libs.junit)
     testImplementation(libs.junit)
@@ -65,4 +95,8 @@ dependencies {
     testImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.androidx.work.testing)
+    testImplementation(libs.koin.test)
+    testImplementation(libs.koin.test.junit4)
 }

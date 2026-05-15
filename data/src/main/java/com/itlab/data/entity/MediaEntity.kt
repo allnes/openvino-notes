@@ -25,5 +25,6 @@ data class MediaEntity(
     val remoteUrl: String?,
     val localPath: String?,
     val mimeType: String,
+    val isSynced: Boolean = false,
     val size: Long? = null,
 )

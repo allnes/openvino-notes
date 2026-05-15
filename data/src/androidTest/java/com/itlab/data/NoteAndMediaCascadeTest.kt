@@ -10,6 +10,7 @@ import com.itlab.data.db.AppDatabase
 import com.itlab.data.entity.MediaEntity
 import com.itlab.data.entity.NoteEntity
 import kotlinx.coroutines.runBlocking
+import kotlinx.datetime.Clock
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -45,7 +46,21 @@ class NoteAndMediaCascadeTest {
     @Test
     fun verifyCascadeDelete_whenNoteDeleted_mediaIsAlsoDeleted() =
         runBlocking {
-            val note = NoteEntity(id = "note_1", title = "Test", content = "Test")
+            val note =
+                NoteEntity(
+                    id = "note_1",
+                    title = "Test",
+                    content = "Test",
+                    userId = "user-123",
+                    folderId = null,
+                    createdAt = Clock.System.now(),
+                    updatedAt = Clock.System.now(),
+                    tags = null,
+                    isFavorite = false,
+                    isSynced = false,
+                    isDeleted = false,
+                    summary = null,
+                )
             val media =
                 MediaEntity(
                     id = "media_1",

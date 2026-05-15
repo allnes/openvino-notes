@@ -8,9 +8,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NoteTest {
+    private val testUserId = "test_user_1"
+
     @Test
     fun note_creation() {
-        val note = Note(title = "Hello")
+        val note = Note(title = "Hello", userId = testUserId)
 
         assertEquals("Hello", note.title)
         assertTrue(note.contentItems.isEmpty())
@@ -18,7 +20,7 @@ class NoteTest {
 
     @Test
     fun note_copy() {
-        val note = Note(title = "A")
+        val note = Note(title = "A", userId = testUserId)
 
         val updated = note.copy(title = "B")
 

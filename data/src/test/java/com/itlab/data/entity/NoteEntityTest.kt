@@ -15,6 +15,7 @@ class NoteEntityTest {
         val note =
             NoteEntity(
                 id = "note_1",
+                userId = "user_1",
                 title = "Test Title",
                 content = "Test Content",
                 createdAt = testTime,
@@ -23,6 +24,7 @@ class NoteEntityTest {
             )
 
         assertEquals("note_1", note.id)
+        assertEquals("user_1", note.userId)
         assertEquals("Test Title", note.title)
         assertEquals("Test Content", note.content)
         assertFalse(note.isSynced)
@@ -37,6 +39,7 @@ class NoteEntityTest {
         val note =
             NoteEntity(
                 id = "note_2",
+                userId = "user_2",
                 title = "Title 2",
                 content = "Content 2",
                 createdAt = customTime,
@@ -44,6 +47,7 @@ class NoteEntityTest {
                 isSynced = true,
             )
 
+        assertEquals("user_2", note.userId)
         assertEquals(customTime, note.createdAt)
         assertEquals(customTime, note.updatedAt)
         assertTrue(note.isSynced)
@@ -54,12 +58,14 @@ class NoteEntityTest {
         val note =
             NoteEntity(
                 id = "1",
+                userId = "user_1",
                 title = "Title",
                 content = "Content",
                 createdAt = testTime,
                 updatedAt = testTime,
             )
         assertEquals("1", note.id)
+        assertEquals("user_1", note.userId)
         assertEquals("Title", note.title)
         assertEquals(false, note.isSynced)
     }
@@ -67,6 +73,7 @@ class NoteEntityTest {
     @Test
     fun `note equality and hashcode`() {
         val id = "1"
+        val userId = "user_1"
         val title = "A"
         val content = "B"
         val timestamp = Instant.fromEpochMilliseconds(123456789L)
@@ -74,6 +81,7 @@ class NoteEntityTest {
         val note1 =
             NoteEntity(
                 id = id,
+                userId = userId,
                 title = title,
                 content = content,
                 isSynced = false,
@@ -83,6 +91,7 @@ class NoteEntityTest {
         val note2 =
             NoteEntity(
                 id = id,
+                userId = userId,
                 title = title,
                 content = content,
                 isSynced = false,
@@ -99,6 +108,7 @@ class NoteEntityTest {
         val note =
             NoteEntity(
                 "1",
+                "user_1",
                 "Old",
                 "Text",
                 createdAt = testTime,
@@ -107,6 +117,7 @@ class NoteEntityTest {
         val updated = note.copy(title = "New", isSynced = true)
 
         assertEquals("New", updated.title)
+        assertEquals("user_1", updated.userId)
         assertEquals(true, updated.isSynced)
         assertEquals("1", updated.id)
     }

@@ -11,6 +11,7 @@ import com.itlab.domain.usecase.noteusecase.ApplySummaryUseCase
 import com.itlab.domain.usecase.noteusecase.ApplyTagsUseCase
 import com.itlab.domain.usecase.noteusecase.CreateNoteUseCase
 import com.itlab.domain.usecase.noteusecase.DeleteNoteUseCase
+import com.itlab.domain.usecase.noteusecase.GetUserIdUseCase
 import com.itlab.domain.usecase.noteusecase.MoveNoteToFolderUseCase
 import com.itlab.domain.usecase.noteusecase.ObserveNotesByFolderUseCase
 import com.itlab.domain.usecase.noteusecase.ObserveNotesUseCase
@@ -32,4 +33,5 @@ data class NotesUseCases(
     val suggestTagsUseCase: SuggestTagsUseCase,
     val applySummaryUseCase: ApplySummaryUseCase,
     val applyTagsUseCase: ApplyTagsUseCase,
+    val getUserIdUseCase: GetUserIdUseCase,
 )

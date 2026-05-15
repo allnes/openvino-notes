@@ -209,7 +209,10 @@ class NotesViewModel(
         val dir = (uiState.screen as? NotesUiScreen.DirectoryNotes)?.directory
         if (dir != null) {
             val newNote =
-                Note(folderId = dir.id.asDomainFolderId()).toUi()
+                Note(
+                    folderId = dir.id.asDomainFolderId(),
+                    userId = useCases.getUserIdUseCase() ?: "anonymous_user",
+                ).toUi()
             uiState =
                 uiState.copy(
                     screen = NotesUiScreen.NoteEditor(directory = dir, note = newNote),
@@ -384,7 +387,8 @@ internal suspend fun upsertEditorNote(
             useCases.updateNoteUseCase(existing.applyUiUpdate(note, targetFolderId)).getOrThrow()
             note.copy(folderId = targetFolderId)
         } else {
-            val savedId = useCases.createNoteUseCase(note.toDomain(folderId = targetFolderId)).getOrThrow()
+            val userId = useCases.getUserIdUseCase() ?: "anonymous_user"
+            val savedId = useCases.createNoteUseCase(note.toDomain(userId, targetFolderId)).getOrThrow()
             note.copy(id = savedId, folderId = targetFolderId)
         }
     }
@@ -405,12 +409,16 @@ internal fun Note.toUi(): NoteItemUi =
         summary = summary,
     )
 
-internal fun NoteItemUi.toDomain(folderId: String?): Note =
+internal fun NoteItemUi.toDomain(
+    userId: String,
+    folderId: String?,
+): Note =
     Note(
         id = id,
         title = title,
         folderId = folderId,
-        contentItems = listOf(ContentItem.Text(content)),
+        contentItems = listOf(ContentItem.Text(text = content)),
+        userId = userId,
         tags = tags,
         summary = summary,
     )
@@ -423,7 +431,7 @@ internal fun Note.applyUiUpdate(
     val updatedText =
         ui.content
             .takeIf { it.isNotBlank() }
-            ?.let { ContentItem.Text(it) }
+            ?.let { ContentItem.Text(text = it) }
 
     return copy(
         title = ui.title,

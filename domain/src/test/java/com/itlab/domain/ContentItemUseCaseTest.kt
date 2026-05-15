@@ -14,6 +14,8 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ContentItemUseCaseTest {
+    val testUserId = "testID"
+
     private class FakeNotesRepo : NotesRepository {
         private val store = mutableMapOf<String, Note>()
         private val flow = MutableStateFlow<List<Note>>(emptyList())
@@ -51,7 +53,7 @@ class ContentItemUseCaseTest {
             val getItem = GetContentItemUseCase(repo)
             val deleteItem = DeleteContentItemUseCase(repo)
 
-            val note = Note(id = "n1", title = "Test")
+            val note = Note(id = "n1", title = "Test", userId = testUserId)
             repo.createNote(note)
 
             val item =
@@ -78,7 +80,7 @@ class ContentItemUseCaseTest {
             val repo = FakeNotesRepo()
             val addItem = AddContentItemUseCase(repo)
 
-            val note = Note(id = "n1", title = "Test")
+            val note = Note(id = "n1", title = "Test", userId = testUserId)
             repo.createNote(note)
 
             val badItem =
@@ -100,7 +102,7 @@ class ContentItemUseCaseTest {
             val addItem = AddContentItemUseCase(repo)
             val getItem = GetContentItemUseCase(repo)
 
-            val note = Note(id = "n1", title = "Test")
+            val note = Note(id = "n1", title = "Test", userId = testUserId)
             repo.createNote(note)
 
             val item1 = createItem(ContentItem.Text(text = "A"))
@@ -122,7 +124,7 @@ class ContentItemUseCaseTest {
             val repo = FakeNotesRepo()
             val deleteItem = DeleteContentItemUseCase(repo)
 
-            val note = Note(id = "n1", title = "Test")
+            val note = Note(id = "n1", title = "Test", userId = testUserId)
             repo.createNote(note)
 
             deleteItem("n1", "wrong-id").getOrThrow()
@@ -138,7 +140,7 @@ class ContentItemUseCaseTest {
             val createItem = CreateContentItemUseCase()
             val addItem = AddContentItemUseCase(repo)
 
-            val note = Note(id = "n1", title = "Test")
+            val note = Note(id = "n1", title = "Test", userId = testUserId)
             repo.createNote(note)
 
             val item = createItem(ContentItem.Text(text = "Hello"))
@@ -153,7 +155,7 @@ class ContentItemUseCaseTest {
         runBlocking {
             val repo = FakeNotesRepo()
             val addItem = AddContentItemUseCase(repo)
-            val note = Note(id = "n1", title = "Test")
+            val note = Note(id = "n1", title = "Test", userId = testUserId)
             repo.createNote(note)
 
             val item = ContentItem.Text(id = "fixed-id", text = "Hello")

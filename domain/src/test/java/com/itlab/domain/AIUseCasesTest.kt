@@ -17,6 +17,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class AIUseCasesTest {
+    private val testUserId = "test_user_1"
+
     private class FakeNotesRepo : NotesRepository {
         private val store = mutableMapOf<String, Note>()
         private val flow = MutableStateFlow<List<Note>>(emptyList())
@@ -81,6 +83,7 @@ class AIUseCasesTest {
                 Note(
                     id = "n1",
                     title = "Test",
+                    userId = testUserId,
                     contentItems =
                         listOf(
                             ContentItem.Text(text = "Hello"),
@@ -122,6 +125,7 @@ class AIUseCasesTest {
                 Note(
                     id = "n2",
                     title = "Tags",
+                    userId = testUserId,
                     contentItems =
                         listOf(
                             ContentItem.Text(text = "First line"),
@@ -178,6 +182,7 @@ class AIUseCasesTest {
                     id = "n3",
                     title = "Summary",
                     summary = "old summary",
+                    userId = testUserId,
                 )
 
             repo.createNote(note)
@@ -211,6 +216,7 @@ class AIUseCasesTest {
                     id = "n4",
                     title = "Tags",
                     tags = setOf("old"),
+                    userId = testUserId,
                 )
 
             repo.createNote(note)
