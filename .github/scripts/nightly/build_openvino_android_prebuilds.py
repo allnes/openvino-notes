@@ -120,11 +120,11 @@ class BuildConfig:
         ccache_dir = Path(getenv("CCACHE_DIR", str((Path(runner_temp) if runner_temp else run_root) / "ccache")))
 
         return cls(
-            openvino_ref=getenv("OPENVINO_REF", "master"),
+            openvino_ref=getenv("OPENVINO_REF", "android-mbind-compat"),
             openvino_genai_ref=getenv("OPENVINO_GENAI_REF", "master"),
             openvino_contrib_ref=getenv("OPENVINO_CONTRIB_REF", "master"),
             onetbb_ref=getenv("ONETBB_REF", "v2023.0.0"),
-            openvino_repo=getenv("OPENVINO_REPO", "https://github.com/openvinotoolkit/openvino.git"),
+            openvino_repo=getenv("OPENVINO_REPO", "https://github.com/embedded-dev-research/openvino.git"),
             openvino_contrib_repo=getenv("OPENVINO_CONTRIB_REPO", "https://github.com/openvinotoolkit/openvino_contrib.git"),
             openvino_genai_repo=getenv("OPENVINO_GENAI_REPO", "https://github.com/openvinotoolkit/openvino.genai.git"),
             onetbb_repo=getenv("ONETBB_REPO", "https://github.com/uxlfoundation/oneTBB.git"),
@@ -249,46 +249,10 @@ def checkout_sources(config: BuildConfig) -> None:
     clone_ref(config.onetbb_repo, config.onetbb_ref, config.src_dir / "oneTBB")
 
 
-def patch_openvino_android_compat(config: BuildConfig) -> None:
-    cpu_memory = config.src_dir / "openvino" / "src" / "plugins" / "intel_cpu" / "src" / "cpu_memory.cpp"
-    if not cpu_memory.is_file():
-        raise SystemExit(f"OpenVINO CPU memory source is missing: {cpu_memory}")
-
-    text = cpu_memory.read_text(encoding="utf-8")
-    if "#if defined(__linux__) && !defined(__ANDROID__)" in text:
-        print("OpenVINO CPU memory already keeps Linux mbind out of Android builds.")
-        return
-
-    old_mbind_guard = "#if defined(__linux__)\n#    define MPOL_DEFAULT   0"
-    new_mbind_guard = "#if defined(__linux__) && !defined(__ANDROID__)\n#    define MPOL_DEFAULT   0"
-    old_move_guard = "#if defined(__linux__)\nbool mbind_move(void* data, size_t size, int targetNode) {"
-    new_move_guard = """#if defined(__ANDROID__)
-bool mbind_move([[maybe_unused]] void* data, [[maybe_unused]] size_t size, [[maybe_unused]] int targetNode) {
-    return true;
-}
-#elif defined(__linux__)
-bool mbind_move(void* data, size_t size, int targetNode) {"""
-
-    if old_mbind_guard not in text or old_move_guard not in text:
-        raise SystemExit("OpenVINO CPU memory NUMA code layout changed; review Android mbind compatibility before building.")
-
-    text = text.replace(old_mbind_guard, new_mbind_guard, 1)
-    text = text.replace(old_move_guard, new_move_guard, 1)
-    cpu_memory.write_text(text, encoding="utf-8")
-
-    config.artifacts_dir.mkdir(parents=True, exist_ok=True)
-    (config.artifacts_dir / "openvino-android-compat-patches.txt").write_text(
-        "src/plugins/intel_cpu/src/cpu_memory.cpp: disable Linux mbind/set_mempolicy path on Android; "
-        "Android seccomp rejects set_mempolicy.\n",
-        encoding="utf-8",
-    )
-
-
 def record_source_manifest(config: BuildConfig) -> None:
     require_command("git")
     config.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    patch_manifest = config.artifacts_dir / "openvino-android-compat-patches.txt"
     lines = [
         "OpenVINO Android prebuild source manifest",
         f"Generated at: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}",
@@ -306,8 +270,6 @@ def record_source_manifest(config: BuildConfig) -> None:
         f"android_platform={config.android_platform}",
         f"android_ndk_version={config.android_ndk_version}",
     ]
-    if patch_manifest.is_file():
-        lines.extend(["", "local_patches:", *patch_manifest.read_text(encoding="utf-8").splitlines()])
     (config.artifacts_dir / "source-manifest.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     if shutil.which("ccache"):
         run(["ccache", "--zero-stats"])
@@ -542,7 +504,6 @@ def ccache_stats(config: BuildConfig) -> None:
 STAGES = {
     "prepare": prepare,
     "checkout-sources": checkout_sources,
-    "patch-openvino-android-compat": patch_openvino_android_compat,
     "record-source-manifest": record_source_manifest,
     "build-onetbb": build_onetbb,
     "configure-openvino": configure_openvino,

@@ -6,11 +6,11 @@ on:
   pull_request:
 
 env:
-  OPENVINO_REF: "master"
+  OPENVINO_REF: "android-mbind-compat"
   OPENVINO_GENAI_REF: "master"
   OPENVINO_CONTRIB_REF: "master"
   ONETBB_REF: "v2023.0.0"
-  OPENVINO_REPO: "https://github.com/openvinotoolkit/openvino.git"
+  OPENVINO_REPO: "https://github.com/embedded-dev-research/openvino.git"
   OPENVINO_CONTRIB_REPO: "https://github.com/openvinotoolkit/openvino_contrib.git"
   OPENVINO_GENAI_REPO: "https://github.com/openvinotoolkit/openvino.genai.git"
   ONETBB_REPO: "https://github.com/uxlfoundation/oneTBB.git"
@@ -65,9 +65,6 @@ jobs:
 
       - name: Checkout source dependencies
         run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py checkout-sources
-
-      - name: Patch OpenVINO Android compatibility
-        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py patch-openvino-android-compat
 
       - name: Record source manifest
         run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py record-source-manifest
