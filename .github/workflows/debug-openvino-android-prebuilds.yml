@@ -3,7 +3,13 @@ name: Debug OpenVINO Android Prebuilds
 on:
   workflow_dispatch:
   push:
+    paths:
+      - ".github/workflows/debug-openvino-android-prebuilds.yml"
+      - ".github/scripts/nightly/**"
   pull_request:
+    paths:
+      - ".github/workflows/debug-openvino-android-prebuilds.yml"
+      - ".github/scripts/nightly/**"
 
 env:
   OPENVINO_REF: "android-mbind-compat"
@@ -25,10 +31,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     permissions:
-      contents: write
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Set up Java
         uses: actions/setup-java@v5.2.0
@@ -58,9 +66,10 @@ jobs:
         uses: actions/cache@v4.2.4
         with:
           path: ${{ runner.temp }}/ccache
-          key: openvino-android-ccache-${{ runner.os }}-${{ env.OPENVINO_REF }}-${{ env.OPENVINO_GENAI_REF }}-${{ env.OPENVINO_CONTRIB_REF }}-${{ env.ONETBB_REF }}-${{ github.run_id }}
+          key: openvino-android-ccache-${{ runner.os }}-${{ env.ANDROID_NDK_VERSION }}-${{ env.OPENVINO_REF }}-${{ env.OPENVINO_GENAI_REF }}-${{ env.OPENVINO_CONTRIB_REF }}-${{ env.ONETBB_REF }}-${{ hashFiles('.github/scripts/nightly/**') }}
           restore-keys: |
-            openvino-android-ccache-${{ runner.os }}-${{ env.OPENVINO_REF }}-${{ env.OPENVINO_GENAI_REF }}-${{ env.OPENVINO_CONTRIB_REF }}-${{ env.ONETBB_REF }}-
+            openvino-android-ccache-${{ runner.os }}-${{ env.ANDROID_NDK_VERSION }}-${{ env.OPENVINO_REF }}-${{ env.OPENVINO_GENAI_REF }}-${{ env.OPENVINO_CONTRIB_REF }}-${{ env.ONETBB_REF }}-
+            openvino-android-ccache-${{ runner.os }}-${{ env.ANDROID_NDK_VERSION }}-
             openvino-android-ccache-${{ runner.os }}-
 
       - name: Prepare build directories
@@ -105,11 +114,36 @@ jobs:
           path: ${{ steps.package.outputs.artifact_path }}
           if-no-files-found: error
 
+  publish-debug-release:
+    name: Publish rolling debug release
+    if: github.event_name == 'workflow_dispatch'
+    needs: android-arm64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install Python dependencies
+        run: python3 -m pip install --user -r .github/scripts/nightly/requirements.txt
+
+      - name: Download prebuild artifact
+        uses: actions/download-artifact@v8.0.1
+        with:
+          pattern: openvino-android-*.zip
+          path: ${{ runner.temp }}/prebuild-artifacts
+          merge-multiple: true
+
       - name: Publish rolling debug release
-        if: github.event_name == 'workflow_dispatch'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          ARTIFACTS_DIR: ${{ runner.temp }}/prebuild-artifacts
           RELEASE_TAG: openvino-android-prebuilds-debug
           RELEASE_TITLE: OpenVINO Android Prebuilds Debug
           RELEASE_NOTES_PREFIX: Rolling debug Android arm64 OpenVINO prebuilds.
