@@ -11,6 +11,8 @@ data class OnDeviceLlmConfig(
     val summaryMaxNewTokens: Int,
     val tagsMaxNewTokens: Int,
     val maxTags: Int,
+    val includeReasoningOutput: Boolean,
+    val disableReasoningPromptHint: String,
 ) {
     companion object {
         fun defaultAndroid(): OnDeviceLlmConfig =
@@ -25,6 +27,8 @@ data class OnDeviceLlmConfig(
                 summaryMaxNewTokens = 96,
                 tagsMaxNewTokens = 48,
                 maxTags = 6,
+                includeReasoningOutput = false,
+                disableReasoningPromptHint = "/no_think",
             )
     }
 }

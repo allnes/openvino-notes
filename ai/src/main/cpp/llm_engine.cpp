@@ -62,6 +62,7 @@ std::string LlmEngine::generate(const std::string& prompt, int max_new_tokens) {
     std::lock_guard<std::mutex> lock(impl_->mutex);
     ov::genai::GenerationConfig generation_config = impl_->pipeline->get_generation_config();
     generation_config.max_new_tokens = static_cast<size_t>(max_new_tokens);
+    generation_config.do_sample = false;
     return impl_->pipeline->generate(prompt, generation_config);
 }
 

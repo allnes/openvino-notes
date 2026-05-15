@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import androidx.test.platform.app.InstrumentationRegistry
 import com.itlab.ai.OpenVinoGenAiBackend
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,8 +19,21 @@ class OpenVinoLlmInstrumentedTest {
 
         OpenVinoGenAiBackend(context).use { backend ->
             val response = backend.generate(prompt, maxNewTokens = 8)
+            val normalizedResponse =
+                response
+                    .lowercase()
+                    .replace(Regex("[^a-z]+"), " ")
+                    .trim()
 
             assertTrue("OpenVINO LLM response must not be blank", response.isNotBlank())
+            assertFalse(
+                "OpenVINO LLM response must not expose reasoning tags: $response",
+                response.contains("<think", ignoreCase = true),
+            )
+            assertTrue(
+                "OpenVINO LLM response should answer the prompt directly: $response",
+                normalizedResponse in setOf("ok", "okay"),
+            )
         }
     }
 }

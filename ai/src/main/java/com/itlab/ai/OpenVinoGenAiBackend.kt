@@ -18,7 +18,12 @@ class OpenVinoGenAiBackend(
         maxNewTokens: Int,
     ): String {
         val activeBridge = bridge ?: createBridge()
-        return activeBridge.generate(prompt, maxNewTokens)
+        val response = activeBridge.generate(preparePrompt(prompt), maxNewTokens)
+        return if (config.includeReasoningOutput) {
+            response
+        } else {
+            stripReasoningSections(response)
+        }
     }
 
     @Synchronized
@@ -122,7 +127,41 @@ class OpenVinoGenAiBackend(
         }
     }
 
+    private fun preparePrompt(prompt: String): String {
+        if (config.includeReasoningOutput || prompt.isBlank()) {
+            return prompt
+        }
+
+        val hint = config.disableReasoningPromptHint.trim()
+        if (hint.isEmpty()) {
+            return prompt
+        }
+
+        val trimmedPrompt = prompt.trimEnd()
+        return if (trimmedPrompt.endsWith(hint, ignoreCase = true)) {
+            prompt
+        } else {
+            "$trimmedPrompt\n$hint"
+        }
+    }
+
+    private fun stripReasoningSections(response: String): String {
+        if (response.isBlank()) {
+            return response
+        }
+
+        return THINKING_TAG_REGEX
+            .replace(THINKING_BLOCK_REGEX.replace(response, ""), "")
+            .trim()
+    }
+
     private companion object {
         const val MODEL_MARKER_FILE = ".openvino_llm_export_complete"
+        val THINKING_BLOCK_REGEX =
+            Regex(
+                pattern = "<think>.*?</think>",
+                options = setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+            )
+        val THINKING_TAG_REGEX = Regex("</?think>", RegexOption.IGNORE_CASE)
     }
 }
