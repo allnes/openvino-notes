@@ -6,9 +6,9 @@ on:
   pull_request:
 
 env:
-  OPENVINO_REF: "2026.1.2"
-  OPENVINO_GENAI_REF: "2026.1.2.0"
-  OPENVINO_CONTRIB_REF: "releases/2026/1"
+  OPENVINO_REF: "master"
+  OPENVINO_GENAI_REF: "master"
+  OPENVINO_CONTRIB_REF: "master"
   ONETBB_REF: "v2023.0.0"
   OPENVINO_REPO: "https://github.com/openvinotoolkit/openvino.git"
   OPENVINO_CONTRIB_REPO: "https://github.com/openvinotoolkit/openvino_contrib.git"

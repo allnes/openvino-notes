@@ -120,9 +120,9 @@ class BuildConfig:
         ccache_dir = Path(getenv("CCACHE_DIR", str((Path(runner_temp) if runner_temp else run_root) / "ccache")))
 
         return cls(
-            openvino_ref=getenv("OPENVINO_REF", "2026.1.2"),
-            openvino_genai_ref=getenv("OPENVINO_GENAI_REF", "2026.1.2.0"),
-            openvino_contrib_ref=getenv("OPENVINO_CONTRIB_REF", "releases/2026/1"),
+            openvino_ref=getenv("OPENVINO_REF", "master"),
+            openvino_genai_ref=getenv("OPENVINO_GENAI_REF", "master"),
+            openvino_contrib_ref=getenv("OPENVINO_CONTRIB_REF", "master"),
             onetbb_ref=getenv("ONETBB_REF", "v2023.0.0"),
             openvino_repo=getenv("OPENVINO_REPO", "https://github.com/openvinotoolkit/openvino.git"),
             openvino_contrib_repo=getenv("OPENVINO_CONTRIB_REPO", "https://github.com/openvinotoolkit/openvino_contrib.git"),
