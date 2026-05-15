@@ -337,6 +337,7 @@ def configure_openvino(config: BuildConfig) -> None:
             "-DENABLE_OV_TF_LITE_FRONTEND=OFF",
             "-DENABLE_OV_JAX_FRONTEND=OFF",
             "-DENABLE_OV_IR_FRONTEND=ON",
+            "-DENABLE_PLUGINS_XML=ON",
             "-DENABLE_SNIPPETS_LIBXSMM_TPP=OFF",
             "-DENABLE_GGUF=ON",
             "-DENABLE_CLANG_FORMAT=OFF",
@@ -456,6 +457,12 @@ def package_prebuild(config: BuildConfig) -> None:
     shutil.copy2(ndk_libcxx, jni_dir)
     for library in sorted((runtime_dir / "lib" / "aarch64").glob("*.so")):
         shutil.copy2(library, jni_dir)
+    for library in sorted(runtime_dir.glob("lib/*/libopenvino_tokenizers.so")):
+        shutil.copy2(library, jni_dir)
+    for plugins_xml in sorted((runtime_dir / "lib").glob("openvino-*/plugins.xml")):
+        plugins_dir = jni_dir / plugins_xml.parent.name
+        plugins_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(plugins_xml, plugins_dir)
     for library in sorted((runtime_dir / "3rdparty" / "tbb" / "lib").glob("*.so")):
         shutil.copy2(library, jni_dir)
     shutil.copy2(config.artifacts_dir / "source-manifest.txt", metadata_dir / "source-manifest.txt")
