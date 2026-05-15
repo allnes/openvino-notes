@@ -66,6 +66,9 @@ jobs:
       - name: Checkout source dependencies
         run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py checkout-sources
 
+      - name: Patch OpenVINO Android compatibility
+        run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py patch-openvino-android-compat
+
       - name: Record source manifest
         run: python3 .github/scripts/nightly/build_openvino_android_prebuilds.py record-source-manifest
 
