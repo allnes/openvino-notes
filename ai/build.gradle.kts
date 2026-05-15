@@ -7,11 +7,15 @@ plugins {
 val openvinoGenAiAndroidDir = providers.gradleProperty("openvinoGenAiAndroidDir")
 val openvinoAndroidPrebuildRepo =
     providers.gradleProperty("openvinoAndroidPrebuildRepo").orElse("embedded-dev-research/openvino-notes")
-val openvinoAndroidPrebuildRunId = providers.gradleProperty("openvinoAndroidPrebuildRunId").orElse("25926372315")
+val openvinoAndroidPrebuildRunId = providers.gradleProperty("openvinoAndroidPrebuildRunId").orElse("25928695317")
 val openvinoAndroidPrebuildArtifactName =
-    providers.gradleProperty("openvinoAndroidPrebuildArtifactName").orElse("openvino-android-arm64-v8a-master.zip")
+    providers
+        .gradleProperty("openvinoAndroidPrebuildArtifactName")
+        .orElse("openvino-android-arm64-v8a-android-mbind-compat.zip")
 val openvinoAndroidPrebuildPackageName =
-    providers.gradleProperty("openvinoAndroidPrebuildPackageName").orElse("openvino-android-arm64-v8a-master")
+    providers
+        .gradleProperty("openvinoAndroidPrebuildPackageName")
+        .orElse("openvino-android-arm64-v8a-android-mbind-compat")
 val openvinoAndroidPrebuildDownloadDir =
     layout.buildDirectory.dir("openvino/prebuild/download/${openvinoAndroidPrebuildRunId.get()}")
 val openvinoAndroidPrebuildExtractDir =
