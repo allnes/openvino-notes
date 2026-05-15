@@ -4,32 +4,51 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .common import BuildConfig, command_output, require_command, run
+from git import RemoteProgress, Repo
+from git.exc import GitError
+
+from .common import BuildConfig, run
+
+
+class CloneProgress(RemoteProgress):
+    def update(
+        self,
+        op_code: int,
+        cur_count: str | float,
+        max_count: str | float | None = None,
+        message: str = "",
+    ) -> None:
+        if message:
+            print(f"git: {message}", flush=True)
 
 
 def clone_ref(repo_url: str, ref: str, destination: Path) -> None:
     if destination.exists():
         shutil.rmtree(destination)
-    run(
-        [
-            "git",
-            "clone",
-            "--recursive",
-            "--depth",
-            "1",
-            "--shallow-submodules",
-            "--jobs",
-            "4",
-            "--branch",
-            ref,
+
+    print(f"+ GitPython clone {repo_url} {destination} --branch {ref}", flush=True)
+    try:
+        Repo.clone_from(
             repo_url,
-            str(destination),
-        ]
-    )
+            destination,
+            branch=ref,
+            depth=1,
+            recursive=True,
+            progress=CloneProgress(),
+            multi_options=["--shallow-submodules", "--jobs=4"],
+        )
+    except GitError as error:
+        raise SystemExit(f"Failed to clone {repo_url}@{ref}: {error}") from error
+
+
+def commit_hash(repository: Path) -> str:
+    try:
+        return Repo(repository).head.commit.hexsha
+    except GitError as error:
+        raise SystemExit(f"Failed to read Git commit from {repository}: {error}") from error
 
 
 def checkout_sources(config: BuildConfig) -> None:
-    require_command("git")
     config.src_dir.mkdir(parents=True, exist_ok=True)
     clone_ref(config.openvino_repo, config.openvino_ref, config.src_dir / "openvino")
     clone_ref(config.openvino_contrib_repo, config.openvino_contrib_ref, config.src_dir / "openvino_contrib")
@@ -38,7 +57,6 @@ def checkout_sources(config: BuildConfig) -> None:
 
 
 def record_source_manifest(config: BuildConfig) -> None:
-    require_command("git")
     config.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     lines = [
@@ -46,13 +64,13 @@ def record_source_manifest(config: BuildConfig) -> None:
         f"Generated at: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}",
         "",
         f"openvino_ref={config.openvino_ref}",
-        f"openvino_commit={command_output(['git', '-C', str(config.src_dir / 'openvino'), 'rev-parse', 'HEAD'])}",
+        f"openvino_commit={commit_hash(config.src_dir / 'openvino')}",
         f"openvino_genai_ref={config.openvino_genai_ref}",
-        f"openvino_genai_commit={command_output(['git', '-C', str(config.src_dir / 'openvino.genai'), 'rev-parse', 'HEAD'])}",
+        f"openvino_genai_commit={commit_hash(config.src_dir / 'openvino.genai')}",
         f"openvino_contrib_ref={config.openvino_contrib_ref}",
-        f"openvino_contrib_commit={command_output(['git', '-C', str(config.src_dir / 'openvino_contrib'), 'rev-parse', 'HEAD'])}",
+        f"openvino_contrib_commit={commit_hash(config.src_dir / 'openvino_contrib')}",
         f"onetbb_ref={config.onetbb_ref}",
-        f"onetbb_commit={command_output(['git', '-C', str(config.src_dir / 'oneTBB'), 'rev-parse', 'HEAD'])}",
+        f"onetbb_commit={commit_hash(config.src_dir / 'oneTBB')}",
         "",
         f"android_abi={config.android_abi}",
         f"android_platform={config.android_platform}",

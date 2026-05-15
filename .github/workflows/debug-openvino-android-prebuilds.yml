@@ -51,6 +51,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ccache ninja-build scons
 
+      - name: Install Python dependencies
+        run: python3 -m pip install --user -r .github/scripts/nightly/requirements.txt
+
       - name: Restore ccache
         uses: actions/cache@v4.2.4
         with:
