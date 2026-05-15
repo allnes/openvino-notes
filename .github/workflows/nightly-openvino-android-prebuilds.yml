@@ -1,9 +1,9 @@
-name: Debug OpenVINO Android Prebuilds
+name: Nightly OpenVINO Android Prebuilds
 
 on:
+  schedule:
+    - cron: "0 2 * * *"
   workflow_dispatch:
-  push:
-  pull_request:
 
 env:
   OPENVINO_REF: "android-mbind-compat"
@@ -102,21 +102,50 @@ jobs:
           path: ${{ steps.package.outputs.artifact_path }}
           if-no-files-found: error
 
-      - name: Publish rolling debug release
-        if: github.event_name == 'workflow_dispatch'
+      - name: Publish rolling nightly prerelease
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: openvino-android-prebuilds-debug
-          ARTIFACT_PATH: ${{ steps.package.outputs.artifact_path }}
+          RELEASE_TAG: openvino-android-prebuilds-nightly
+          RELEASE_TITLE: OpenVINO Android Prebuilds Nightly
         run: |
           set -euo pipefail
 
-          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release create "$RELEASE_TAG" \
-              --title "OpenVINO Android Prebuilds Debug" \
-              --prerelease \
-              --notes "Rolling debug Android arm64 OpenVINO prebuilds."
+          shopt -s nullglob
+          prebuilds=("${ARTIFACTS_DIR}"/*.zip)
+          if [ "${#prebuilds[@]}" -eq 0 ]; then
+            echo "No prebuild zip artifacts found in ${ARTIFACTS_DIR}"
+            exit 1
           fi
 
-          gh release upload "$RELEASE_TAG" "$ARTIFACT_PATH" --clobber
+          notes_file="$(mktemp)"
+          cat >"${notes_file}" <<EOF
+          Rolling prerelease for nightly Android OpenVINO prebuilds.
+
+          Source refs:
+          - OpenVINO: ${OPENVINO_REF}
+          - OpenVINO GenAI: ${OPENVINO_GENAI_REF}
+          - OpenVINO Contrib: ${OPENVINO_CONTRIB_REF}
+          - oneTBB: ${ONETBB_REF}
+
+          Android target:
+          - ABI: ${ANDROID_ABI}
+          - Platform: ${ANDROID_PLATFORM}
+          - NDK: ${ANDROID_NDK_VERSION}
+
+          Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          EOF
+
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" \
+              --title "$RELEASE_TITLE" \
+              --prerelease \
+              --notes-file "$notes_file"
+          else
+            gh release edit "$RELEASE_TAG" \
+              --title "$RELEASE_TITLE" \
+              --prerelease \
+              --notes-file "$notes_file"
+          fi
+
+          gh release upload "$RELEASE_TAG" "${prebuilds[@]}" --clobber
