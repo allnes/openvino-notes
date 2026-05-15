@@ -1,5 +1,6 @@
 package com.itlab.ai
 
+import android.annotation.SuppressLint
 import android.content.Context
 import java.io.File
 
@@ -7,6 +8,7 @@ internal class OpenVinoNativeRuntime private constructor(
     private val runtimeDir: File,
     private val notesLibrary: File,
 ) {
+    @SuppressLint("UnsafeDynamicallyLoadedCode")
     fun loadBridge(): Result<NativeLlmBridge> =
         runCatching {
             preferredLibraryLoadOrder

@@ -337,24 +337,24 @@ class NotesViewModel(
     }
 }
 
-private enum class AiSuggestion {
+internal enum class AiSuggestion {
     Summary,
     Tags,
 }
 
-private fun AiSuggestion.startState(state: AiUiState): AiUiState =
+internal fun AiSuggestion.startState(state: AiUiState): AiUiState =
     when (this) {
         AiSuggestion.Summary -> state.copy(isGeneratingSummary = true, errorMessage = null)
         AiSuggestion.Tags -> state.copy(isGeneratingTags = true, errorMessage = null)
     }
 
-private fun AiSuggestion.successState(state: AiUiState): AiUiState =
+internal fun AiSuggestion.successState(state: AiUiState): AiUiState =
     when (this) {
         AiSuggestion.Summary -> state.copy(isGeneratingSummary = false, errorMessage = null)
         AiSuggestion.Tags -> state.copy(isGeneratingTags = false, errorMessage = null)
     }
 
-private fun AiSuggestion.errorState(
+internal fun AiSuggestion.errorState(
     state: AiUiState,
     error: Throwable,
 ): AiUiState =
@@ -371,7 +371,7 @@ private fun AiSuggestion.errorState(
             )
     }
 
-private suspend fun upsertEditorNote(
+internal suspend fun upsertEditorNote(
     note: NoteItemUi,
     editor: NotesUiScreen.NoteEditor,
     latestNotes: List<Note>,
@@ -436,4 +436,4 @@ internal fun Note.applyUiUpdate(
 
 internal fun String.asDomainFolderId(): String? = if (this == "all") null else this
 
-private fun Throwable.userMessage(fallback: String): String = message ?: fallback
+internal fun Throwable.userMessage(fallback: String): String = message ?: fallback

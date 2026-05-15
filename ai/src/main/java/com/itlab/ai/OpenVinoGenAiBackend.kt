@@ -89,14 +89,14 @@ class OpenVinoGenAiBackend(
     }
 }
 
-private fun Context.assetDirectoryExists(assetPath: String): Boolean =
+internal fun Context.assetDirectoryExists(assetPath: String): Boolean =
     try {
         !assets.list(assetPath).isNullOrEmpty()
     } catch (_: IOException) {
         false
     }
 
-private fun Context.readAssetText(assetPath: String): String? =
+internal fun Context.readAssetText(assetPath: String): String? =
     try {
         assets
             .open(assetPath)
@@ -106,7 +106,7 @@ private fun Context.readAssetText(assetPath: String): String? =
         null
     }
 
-private fun Context.copyAssetDirectory(
+internal fun Context.copyAssetDirectory(
     assetPath: String,
     targetDir: File,
 ) {
@@ -117,7 +117,7 @@ private fun Context.copyAssetDirectory(
     children.forEach { child -> copyAssetChild(assetPath, targetDir, child) }
 }
 
-private fun Context.copyAssetChild(
+internal fun Context.copyAssetChild(
     assetPath: String,
     targetDir: File,
     child: String,
@@ -133,7 +133,7 @@ private fun Context.copyAssetChild(
     }
 }
 
-private fun Context.copyAssetFile(
+internal fun Context.copyAssetFile(
     assetPath: String,
     targetFile: File,
 ) {
@@ -144,7 +144,7 @@ private fun Context.copyAssetFile(
     }
 }
 
-private fun preparePrompt(
+internal fun preparePrompt(
     prompt: String,
     config: OnDeviceLlmConfig,
 ): String {
@@ -163,7 +163,7 @@ private fun preparePrompt(
     }
 }
 
-private fun stripReasoningSections(response: String): String {
+internal fun stripReasoningSections(response: String): String {
     if (response.isBlank()) {
         return response
     }

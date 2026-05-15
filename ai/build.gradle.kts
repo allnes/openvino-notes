@@ -97,6 +97,11 @@ android {
         }
     }
 
+    lint {
+        // The OpenVINO GenAI Android prebuild used by this module is arm64-v8a only.
+        disable += "ChromeOsAbiSupport"
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
