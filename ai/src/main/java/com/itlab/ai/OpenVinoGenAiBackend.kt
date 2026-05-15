@@ -32,10 +32,15 @@ class OpenVinoGenAiBackend(
         val cacheDir =
             File(appContext.cacheDir, config.cacheDirName)
                 .apply { mkdirs() }
+        val runtime =
+            OpenVinoNativeRuntime.prepare(
+                context = appContext,
+                notesLibraryName = config.nativeLibraryName,
+            )
 
         val loaded =
-            NativeLlmBridge
-                .load(config.nativeLibraryName)
+            runtime
+                .loadBridge()
                 .getOrElse { cause ->
                     throw MissingLlmRuntimeException(
                         "OpenVINO GenAI native library '${config.nativeLibraryName}' is not packaged.",
@@ -54,10 +59,6 @@ class OpenVinoGenAiBackend(
 
     private fun ensureModelDirectory(): File {
         val targetDir = File(appContext.filesDir, "models/${config.modelDirName}")
-        if (targetDir.exists() && !targetDir.list().isNullOrEmpty()) {
-            return targetDir
-        }
-
         if (!assetDirectoryExists(config.assetModelDir)) {
             throw MissingLlmRuntimeException(
                 "OpenVINO LLM model assets are missing at assets/${config.assetModelDir}. " +
@@ -65,8 +66,16 @@ class OpenVinoGenAiBackend(
             )
         }
 
+        val assetMarker = readAssetText("${config.assetModelDir}/$MODEL_MARKER_FILE")
+        val targetMarker = targetDir.resolve(MODEL_MARKER_FILE).takeIf { it.isFile }?.readText()
+        if (targetDir.exists() && !targetDir.list().isNullOrEmpty() && assetMarker == targetMarker) {
+            return targetDir
+        }
+
+        targetDir.deleteRecursively()
         targetDir.mkdirs()
         copyAssetDirectory(config.assetModelDir, targetDir)
+        File(appContext.cacheDir, config.cacheDirName).deleteRecursively()
         return targetDir
     }
 
@@ -75,6 +84,17 @@ class OpenVinoGenAiBackend(
             !appContext.assets.list(assetPath).isNullOrEmpty()
         } catch (_: IOException) {
             false
+        }
+
+    private fun readAssetText(assetPath: String): String? =
+        try {
+            appContext
+                .assets
+                .open(assetPath)
+                .bufferedReader()
+                .use { it.readText() }
+        } catch (_: IOException) {
+            null
         }
 
     private fun copyAssetDirectory(
@@ -100,5 +120,9 @@ class OpenVinoGenAiBackend(
                 copyAssetDirectory(childAssetPath, childTarget)
             }
         }
+    }
+
+    private companion object {
+        const val MODEL_MARKER_FILE = ".openvino_llm_export_complete"
     }
 }

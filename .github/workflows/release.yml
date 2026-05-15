@@ -6,6 +6,7 @@ on:
 env:
   ANDROID_API_LEVEL: "37.0"
   ANDROID_BUILD_TOOLS: "37.0.0"
+  GITHUB_TOKEN: ${{ github.token }}
   JAVA_VERSION: "21"
 
 jobs:

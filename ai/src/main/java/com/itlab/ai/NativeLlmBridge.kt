@@ -1,6 +1,6 @@
 package com.itlab.ai
 
-class NativeLlmBridge private constructor() : AutoCloseable {
+class NativeLlmBridge internal constructor() : AutoCloseable {
     external fun init(
         modelDir: String,
         cacheDir: String,
@@ -13,12 +13,4 @@ class NativeLlmBridge private constructor() : AutoCloseable {
     ): String
 
     external override fun close()
-
-    companion object {
-        fun load(libraryName: String): Result<NativeLlmBridge> =
-            runCatching {
-                System.loadLibrary(libraryName)
-                NativeLlmBridge()
-            }
-    }
 }

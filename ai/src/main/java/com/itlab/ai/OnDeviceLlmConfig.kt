@@ -15,7 +15,7 @@ data class OnDeviceLlmConfig(
     companion object {
         fun defaultAndroid(): OnDeviceLlmConfig =
             OnDeviceLlmConfig(
-                modelId = "Qwen/Qwen2.5-0.5B-Instruct",
+                modelId = "OpenVINO/Qwen3-0.6B-int4-ov",
                 assetModelDir = "models/on-device-llm-openvino",
                 modelDirName = "on-device-llm-openvino",
                 device = "CPU",
