@@ -8,9 +8,9 @@ from github.GitRelease import GitRelease
 from github.Repository import Repository
 
 
-DEFAULT_RELEASE_TAG = "openvino-android-prebuilds-debug"
-DEFAULT_RELEASE_TITLE = "OpenVINO Android Prebuilds Debug"
-DEFAULT_RELEASE_NOTES_PREFIX = "Rolling debug Android arm64 OpenVINO prebuilds."
+DEFAULT_RELEASE_TAG = "openvino-android-prebuilds-nightly"
+DEFAULT_RELEASE_TITLE = "OpenVINO Android Prebuilds Nightly"
+DEFAULT_RELEASE_NOTES_PREFIX = "Rolling nightly Android arm64 OpenVINO prebuilds."
 
 
 def _github_repository() -> Repository:

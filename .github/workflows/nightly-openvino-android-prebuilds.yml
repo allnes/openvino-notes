@@ -1,15 +1,9 @@
-name: Debug OpenVINO Android Prebuilds
+name: Nightly OpenVINO Android Prebuilds
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - ".github/workflows/debug-openvino-android-prebuilds.yml"
-      - ".github/scripts/nightly/**"
-  pull_request:
-    paths:
-      - ".github/workflows/debug-openvino-android-prebuilds.yml"
-      - ".github/scripts/nightly/**"
+  schedule:
+    - cron: "0 2 * * *"
 
 env:
   OPENVINO_REF: "android-mbind-compat"
@@ -114,9 +108,8 @@ jobs:
           path: ${{ steps.package.outputs.artifact_path }}
           if-no-files-found: error
 
-  publish-debug-release:
-    name: Publish rolling debug release
-    if: github.event_name == 'workflow_dispatch'
+  publish-nightly-release:
+    name: Publish rolling nightly prerelease
     needs: android-arm64
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -139,12 +132,12 @@ jobs:
           path: ${{ runner.temp }}/prebuild-artifacts
           merge-multiple: true
 
-      - name: Publish rolling debug release
+      - name: Publish rolling nightly prerelease
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           ARTIFACTS_DIR: ${{ runner.temp }}/prebuild-artifacts
-          RELEASE_TAG: openvino-android-prebuilds-debug
-          RELEASE_TITLE: OpenVINO Android Prebuilds Debug
-          RELEASE_NOTES_PREFIX: Rolling debug Android arm64 OpenVINO prebuilds.
+          RELEASE_TAG: openvino-android-prebuilds-nightly
+          RELEASE_TITLE: OpenVINO Android Prebuilds Nightly
+          RELEASE_NOTES_PREFIX: Rolling nightly Android arm64 OpenVINO prebuilds.
         run: python3 .github/scripts/nightly/prebuild.py publish-release
