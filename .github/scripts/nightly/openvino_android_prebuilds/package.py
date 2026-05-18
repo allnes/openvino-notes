@@ -87,6 +87,8 @@ def copy_runtime_payload(config: BuildConfig, runtime_dir: Path, jni_dir: Path) 
     for plugins_xml in plugin_xml_files:
         if plugins_xml.parent.name.startswith("openvino-"):
             plugins_dir = jni_dir / plugins_xml.parent.name
+        elif plugins_xml.parent.parent == runtime_lib_dir:
+            plugins_dir = jni_dir
         else:
             plugins_dir = jni_dir / plugins_xml.relative_to(runtime_lib_dir).parent
         plugins_dir.mkdir(parents=True, exist_ok=True)
@@ -148,7 +150,8 @@ def package_runtime(config: BuildConfig, runtime_dir: Path, source_manifest: Pat
 
 Contents:
 - `android-jni/{config.android_abi}/`: shared libraries ready to copy into an Android app `src/main/jniLibs/{config.android_abi}` directory, including `libc++_shared.so` from the Android NDK.
-- `android-jni/{config.android_abi}/openvino-*/plugins.xml`: OpenVINO plugin registry files required at runtime.
+- `android-jni/{config.android_abi}/plugins.xml`: OpenVINO plugin registry for arch-directory runtime installs.
+- `android-jni/{config.android_abi}/openvino-*/plugins.xml`: OpenVINO plugin registry files for versioned runtime installs.
 - `metadata/source-manifest.txt`: exact source refs and commits used for this build.
 
 This package is built for Android {config.android_abi}, Android platform {config.android_platform}, and Android NDK {config.android_ndk_version}.
