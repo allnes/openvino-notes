@@ -95,6 +95,13 @@ def copy_runtime_payload(config: BuildConfig, runtime_dir: Path, jni_dir: Path) 
         shutil.copy2(plugins_xml, plugins_dir)
 
 
+def copy_genai_java_api_payload(config: BuildConfig, jni_dir: Path) -> None:
+    jni_library = config.genai_java_api_install_dir / "lib" / "libov_genai_java_jni.so"
+    if not jni_library.is_file():
+        raise SystemExit(f"OpenVINO GenAI Java API JNI library is missing: {jni_library}")
+    copy_unique_file(jni_library, jni_dir)
+
+
 def package_asset(path: Path, *, package_type: str, abi: str | None) -> dict[str, object]:
     return {
         "name": path.name,
@@ -116,6 +123,10 @@ def package_common(config: BuildConfig, source_manifest: Path) -> dict[str, obje
     metadata_dir.mkdir(parents=True, exist_ok=True)
 
     shutil.copy2(config.artifacts_dir / "java-api" / f"openvino-java-api-{config.package_ref}-android.jar", java_dir)
+    shutil.copy2(
+        config.artifacts_dir / "genai-java-api" / f"openvino-genai-java-api-{config.genai_java_api_package_ref}-android.jar",
+        java_dir,
+    )
     write_common_source_manifest(source_manifest, metadata_dir / "source-manifest.txt")
     write_readme(
         config.common_package_root / "README.md",
@@ -124,6 +135,7 @@ def package_common(config: BuildConfig, source_manifest: Path) -> dict[str, obje
 
 Contents:
 - `java/`: Java API classes jar for `org.intel.openvino.*`.
+- `java/`: OpenVINO GenAI Java API classes jar for `com.ovx.openvino.genai.*`.
 - `metadata/source-manifest.txt`: exact source refs and commits used for this build.
 
 Use this package together with one `openvino-android-runtime-<abi>-{config.package_ref}.zip` package.
@@ -141,6 +153,7 @@ def package_runtime(config: BuildConfig, runtime_dir: Path, source_manifest: Pat
     metadata_dir.mkdir(parents=True, exist_ok=True)
 
     copy_runtime_payload(config, runtime_dir, jni_dir)
+    copy_genai_java_api_payload(config, jni_dir)
     strip_shared_libraries(config, config.runtime_package_root)
     shutil.copy2(source_manifest, metadata_dir / "source-manifest.txt")
     write_readme(
@@ -150,6 +163,7 @@ def package_runtime(config: BuildConfig, runtime_dir: Path, source_manifest: Pat
 
 Contents:
 - `android-jni/{config.android_abi}/`: shared libraries ready to copy into an Android app `src/main/jniLibs/{config.android_abi}` directory, including `libc++_shared.so` from the Android NDK.
+- `android-jni/{config.android_abi}/libov_genai_java_jni.so`: OpenVINO GenAI Java API JNI bridge built in `REAL` mode.
 - `android-jni/{config.android_abi}/plugins.xml`: OpenVINO plugin registry for arch-directory runtime installs.
 - `android-jni/{config.android_abi}/openvino-*/plugins.xml`: OpenVINO plugin registry files for versioned runtime installs.
 - `metadata/source-manifest.txt`: exact source refs and commits used for this build.

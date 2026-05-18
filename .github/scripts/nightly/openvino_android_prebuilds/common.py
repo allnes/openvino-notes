@@ -104,6 +104,7 @@ class BuildConfig(BaseSettings):
 
     openvino_ref: str = Field("android-mbind-compat", validation_alias="OPENVINO_REF")
     openvino_genai_ref: str = Field("master", validation_alias="OPENVINO_GENAI_REF")
+    genai_java_api_ref: str = Field("main", validation_alias="GENAI_JAVA_API_REF")
     openvino_contrib_ref: str = Field("master", validation_alias="OPENVINO_CONTRIB_REF")
     onetbb_ref: str = Field("v2023.0.0", validation_alias="ONETBB_REF")
     openvino_repo: str = Field("https://github.com/embedded-dev-research/openvino.git", validation_alias="OPENVINO_REPO")
@@ -114,6 +115,10 @@ class BuildConfig(BaseSettings):
     openvino_genai_repo: str = Field(
         "https://github.com/openvinotoolkit/openvino.genai.git",
         validation_alias="OPENVINO_GENAI_REPO",
+    )
+    genai_java_api_repo: str = Field(
+        "https://github.com/ov-ext-labs/genai-java-api.git",
+        validation_alias="GENAI_JAVA_API_REPO",
     )
     onetbb_repo: str = Field("https://github.com/uxlfoundation/oneTBB.git", validation_alias="ONETBB_REPO")
     android_abi: str = Field("arm64-v8a", validation_alias="ANDROID_ABI")
@@ -177,6 +182,10 @@ class BuildConfig(BaseSettings):
         return safe_filename_part(self.openvino_ref)
 
     @property
+    def genai_java_api_package_ref(self) -> str:
+        return safe_filename_part(self.genai_java_api_ref)
+
+    @property
     def common_package_name(self) -> str:
         return f"openvino-android-common-{self.package_ref}"
 
@@ -207,6 +216,22 @@ class BuildConfig(BaseSettings):
     @property
     def runtime_zip_path(self) -> Path:
         return self.artifacts_dir / f"{self.runtime_package_name}.zip"
+
+    @property
+    def genai_java_api_build_dir(self) -> Path:
+        return self.build_dir / "genai-java-api"
+
+    @property
+    def genai_java_api_install_dir(self) -> Path:
+        return self.install_dir / "genai-java-api"
+
+    @property
+    def openvino_runtime_cmake_dir(self) -> Path:
+        return self.install_dir / "openvino-android" / "runtime" / "cmake"
+
+    @property
+    def android_platform_jar(self) -> Path:
+        return self.android_sdk_root / "platforms" / f"android-{self.android_platform}" / "android.jar"
 
     @property
     def package_manifest_path(self) -> Path:
