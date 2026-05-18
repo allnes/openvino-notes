@@ -121,14 +121,7 @@ class OpenVinoGenAiBackend(
         Log.i(TAG, "createPipeline runtimeReady elapsedMs=${SystemClock.elapsedRealtime() - runtimeStartedAt}")
 
         val initStartedAt = SystemClock.elapsedRealtime()
-        try {
-            runtime.initialize(config.device)
-        } catch (cause: RuntimeException) {
-            throw MissingLlmRuntimeException(
-                "OpenVINO GenAI Java runtime '${config.nativeLibraryName}' is not packaged.",
-                cause,
-            )
-        }
+        runtime.initialize(config.device)
         Log.i(TAG, "createPipeline javaApiReady elapsedMs=${SystemClock.elapsedRealtime() - initStartedAt}")
 
         val pipelineStartedAt = SystemClock.elapsedRealtime()
@@ -212,7 +205,8 @@ class OpenVinoGenAiBackend(
                 }
             LlmGenerationIntent.Summary,
             LlmGenerationIntent.Rewrite,
-            LlmGenerationIntent.General -> null
+            LlmGenerationIntent.General,
+            -> null
         }
 
     private fun chatHistory(prompt: String): ChatHistory =

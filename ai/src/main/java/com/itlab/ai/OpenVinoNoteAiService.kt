@@ -100,8 +100,7 @@ class OpenVinoNoteAiService(
         return emptySet()
     }
 
-    private fun String.retryContext(): String =
-        trim().take(MAX_RETRY_CONTEXT_CHARS)
+    private fun String.retryContext(): String = trim().take(MAX_RETRY_CONTEXT_CHARS)
 
     private companion object {
         const val MAX_RETRY_CONTEXT_CHARS = 600

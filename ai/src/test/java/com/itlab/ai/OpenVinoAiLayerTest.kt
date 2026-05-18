@@ -7,7 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
+import kotlin.io.path.createTempDirectory
 
 class OpenVinoAiLayerTest {
     @Test
@@ -395,7 +395,7 @@ class OpenVinoAiLayerTest {
 
     @Test
     fun androidPipelineProperties_enablesAndroidCacheAndFastCpuSettings() {
-        val cacheDir = File("/data/user/0/com.itlab.notes/cache/openvino-genai-cache")
+        val cacheDir = createTempDirectory("openvino-genai-cache").toFile()
         val config =
             OnDeviceLlmConfig.defaultAndroid().copy(
                 inferenceNumThreads = 4,

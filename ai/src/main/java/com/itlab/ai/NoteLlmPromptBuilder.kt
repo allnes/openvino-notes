@@ -172,8 +172,7 @@ class NoteLlmPromptBuilder(
         )
     }
 
-    private fun chatPrompt(instruction: String): String =
-        instruction
+    private fun chatPrompt(instruction: String): String = instruction
 
     private fun rewriteInstruction(
         style: RewriteStyle,
@@ -190,5 +189,4 @@ class NoteLlmPromptBuilder(
         text
             .trim()
             .take(minOf(config.maxInputChars, max(1, maxInputTokens) * config.approximateCharsPerToken))
-
 }

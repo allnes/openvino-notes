@@ -21,10 +21,13 @@ class OnDeviceLlmMultilingualInstrumentedTest {
             try {
                 val warmUpMs = measureElapsedMs { fixture.service.warmUp() }
                 val warmDiagnostics = fixture.backend.diagnostics()
-                assertEquals("Warm-up must create exactly one reusable pipeline", 1, warmDiagnostics.pipelineCreationCount)
+                assertEquals(
+                    "Warm-up must create exactly one reusable pipeline",
+                    1,
+                    warmDiagnostics.pipelineCreationCount,
+                )
                 assertTrue("OpenVINO cache directory was not created", warmDiagnostics.cacheDir.isDirectory)
-                Log.i(
-                    TAG,
+                logInfo(
                     "warmUpMs=$warmUpMs cacheDir=${warmDiagnostics.cacheDir} " +
                         "cacheFiles=${warmDiagnostics.cacheFileCount}",
                 )
@@ -67,8 +70,7 @@ class OnDeviceLlmMultilingualInstrumentedTest {
                     timings += GenerationTiming(testCase.language, "tags", tagsResult.elapsedMs)
                     timings += GenerationTiming(testCase.language, "rewrite", rewriteResult.elapsedMs)
 
-                    Log.i(
-                        TAG,
+                    logInfo(
                         "${testCase.language} " +
                             "summaryMs=${summaryResult.elapsedMs} tagsMs=${tagsResult.elapsedMs} " +
                             "rewriteMs=${rewriteResult.elapsedMs} " +
@@ -158,7 +160,10 @@ class OnDeviceLlmMultilingualInstrumentedTest {
     ) {
         assertTrue("${testCase.language} rewrite is blank", rewrite.isNotBlank())
         assertTrue("${testCase.language} rewrite is too short: $rewrite", rewrite.length >= 80)
-        assertTrue("${testCase.language} rewrite is unexpectedly long: $rewrite", rewrite.length <= testCase.note.length + 220)
+        assertTrue(
+            "${testCase.language} rewrite is unexpectedly long: $rewrite",
+            rewrite.length <= testCase.note.length + 220,
+        )
         assertNoAssistantArtifacts(testCase.language, "rewrite", rewrite)
         assertLanguageSignal(testCase, "rewrite", rewrite)
         assertContainsAny(testCase, "rewrite", rewrite, testCase.rewriteFacts)
@@ -199,7 +204,7 @@ class OnDeviceLlmMultilingualInstrumentedTest {
     private fun assertWarmGenerationPerformance(timings: List<GenerationTiming>) {
         val slowest = timings.maxBy { it.elapsedMs }
         val averageMs = timings.sumOf { it.elapsedMs } / timings.size
-        Log.i(TAG, "warm generation timings=$timings averageMs=$averageMs slowest=$slowest")
+        logInfo("warm generation timings=$timings averageMs=$averageMs slowest=$slowest")
         assertTrue(
             "Warm LLM generation average is too slow: ${averageMs}ms, timings=$timings",
             averageMs <= MAX_AVERAGE_WARM_GENERATION_MS,
@@ -208,6 +213,12 @@ class OnDeviceLlmMultilingualInstrumentedTest {
             "A warm LLM generation call is too slow: $slowest, timings=$timings",
             slowest.elapsedMs <= MAX_SINGLE_WARM_GENERATION_MS,
         )
+    }
+
+    private fun logInfo(message: String) {
+        if (Log.isLoggable(TAG, Log.INFO)) {
+            Log.i(TAG, message)
+        }
     }
 
     private data class TestFixture(
@@ -236,7 +247,7 @@ class OnDeviceLlmMultilingualInstrumentedTest {
     )
 
     private companion object {
-        private const val TAG = "OnDeviceLlmMultilingualTest"
+        private const val TAG = "OnDeviceLlmTest"
         private const val MAX_AVERAGE_WARM_GENERATION_MS = 18_000L
         private const val MAX_SINGLE_WARM_GENERATION_MS = 45_000L
         private val config = OnDeviceLlmConfig.defaultAndroid()
@@ -262,7 +273,11 @@ class OnDeviceLlmMultilingualInstrumentedTest {
                             "she must confirm the OpenVINO build, prepare two battery packs, and send Dr. Chen " +
                             "a risk note about the elevator outage. If the rain forecast changes, move the demo " +
                             "from the west entrance to Lab B.",
-                    languageSignal = Regex("\\b(the|and|with|for|before|after|must|should|needs?)\\b", RegexOption.IGNORE_CASE),
+                    languageSignal =
+                        Regex(
+                            "\\b(the|and|with|for|before|after|must|should|needs?)\\b",
+                            RegexOption.IGNORE_CASE,
+                        ),
                     summaryFacts = listOf("Maya", "Chen", "Friday", "14:00", "Lab B"),
                     rewriteFacts = listOf("Maya", "Chen", "Friday", "14:00", "Lab B"),
                     tagSignals = listOf("robot", "hospital", "demo", "battery", "risk"),
