@@ -14,7 +14,7 @@ env:
   OPENVINO_CONTRIB_REPO: "https://github.com/openvinotoolkit/openvino_contrib.git"
   OPENVINO_GENAI_REPO: "https://github.com/openvinotoolkit/openvino.genai.git"
   ONETBB_REPO: "https://github.com/uxlfoundation/oneTBB.git"
-  ANDROID_PLATFORM: "35"
+  ANDROID_PLATFORM: "33"
   ANDROID_NDK_VERSION: "29.0.14206865"
   JAVA_VERSION: "21"
 
