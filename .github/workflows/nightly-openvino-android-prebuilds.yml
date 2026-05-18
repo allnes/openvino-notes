@@ -235,6 +235,9 @@ jobs:
           android-api-level: "37.0"
           android-build-tools: "37.0.0"
 
+      - name: Install Python dependencies
+        run: python3 -m pip install --user -r .github/scripts/nightly/requirements.txt
+
       - name: Assemble signed release APK from nightly prebuilds
         shell: bash
         run: |
