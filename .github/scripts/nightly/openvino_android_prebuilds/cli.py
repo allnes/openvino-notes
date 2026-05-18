@@ -6,6 +6,7 @@ from typing import Annotated
 import typer
 
 from .build_steps import (
+    build_genai_java_api,
     build_onetbb,
     build_openvino_genai,
     build_openvino_java_api,
@@ -31,6 +32,7 @@ class Stage(str, Enum):
     build_openvino_genai = "build-openvino-genai"
     build_openvino_java_api = "build-openvino-java-api"
     install_openvino = "install-openvino"
+    build_genai_java_api = "build-genai-java-api"
     package_prebuild = "package-prebuild"
     ccache_stats = "ccache-stats"
     publish_release = "publish-release"
@@ -46,6 +48,7 @@ STAGES = {
     Stage.build_openvino_genai: build_openvino_genai,
     Stage.build_openvino_java_api: build_openvino_java_api,
     Stage.install_openvino: install_openvino,
+    Stage.build_genai_java_api: build_genai_java_api,
     Stage.package_prebuild: package_prebuild,
     Stage.ccache_stats: ccache_stats,
 }

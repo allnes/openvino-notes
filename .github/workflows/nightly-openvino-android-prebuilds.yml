@@ -8,11 +8,13 @@ on:
 env:
   OPENVINO_REF: "android-mbind-compat"
   OPENVINO_GENAI_REF: "master"
+  GENAI_JAVA_API_REF: "main"
   OPENVINO_CONTRIB_REF: "master"
   ONETBB_REF: "v2023.0.0"
   OPENVINO_REPO: "https://github.com/embedded-dev-research/openvino.git"
   OPENVINO_CONTRIB_REPO: "https://github.com/openvinotoolkit/openvino_contrib.git"
   OPENVINO_GENAI_REPO: "https://github.com/openvinotoolkit/openvino.genai.git"
+  GENAI_JAVA_API_REPO: "https://github.com/ov-ext-labs/genai-java-api.git"
   ONETBB_REPO: "https://github.com/uxlfoundation/oneTBB.git"
   ANDROID_PLATFORM: "33"
   ANDROID_NDK_VERSION: "29.0.14206865"
@@ -53,9 +55,9 @@ jobs:
         with:
           packages: platform-tools
 
-      - name: Install Android NDK
+      - name: Install Android platform and NDK
         shell: bash
-        run: sdkmanager --install "ndk;${ANDROID_NDK_VERSION}"
+        run: sdkmanager --install "platforms;android-${ANDROID_PLATFORM}" "ndk;${ANDROID_NDK_VERSION}"
 
       - name: Install host tools
         shell: bash
@@ -70,9 +72,9 @@ jobs:
         uses: actions/cache@v4.2.4
         with:
           path: ${{ runner.temp }}/ccache
-          key: openvino-android-ccache-${{ runner.os }}-${{ env.ANDROID_NDK_VERSION }}-${{ matrix.android_abi }}-${{ env.OPENVINO_REF }}-${{ env.OPENVINO_GENAI_REF }}-${{ env.OPENVINO_CONTRIB_REF }}-${{ env.ONETBB_REF }}-${{ hashFiles('.github/scripts/nightly/**') }}
+          key: openvino-android-ccache-${{ runner.os }}-${{ env.ANDROID_NDK_VERSION }}-${{ matrix.android_abi }}-${{ env.OPENVINO_REF }}-${{ env.OPENVINO_GENAI_REF }}-${{ env.GENAI_JAVA_API_REF }}-${{ env.OPENVINO_CONTRIB_REF }}-${{ env.ONETBB_REF }}-${{ hashFiles('.github/scripts/nightly/**') }}
           restore-keys: |
-            openvino-android-ccache-${{ runner.os }}-${{ env.ANDROID_NDK_VERSION }}-${{ matrix.android_abi }}-${{ env.OPENVINO_REF }}-${{ env.OPENVINO_GENAI_REF }}-${{ env.OPENVINO_CONTRIB_REF }}-${{ env.ONETBB_REF }}-
+            openvino-android-ccache-${{ runner.os }}-${{ env.ANDROID_NDK_VERSION }}-${{ matrix.android_abi }}-${{ env.OPENVINO_REF }}-${{ env.OPENVINO_GENAI_REF }}-${{ env.GENAI_JAVA_API_REF }}-${{ env.OPENVINO_CONTRIB_REF }}-${{ env.ONETBB_REF }}-
             openvino-android-ccache-${{ runner.os }}-${{ env.ANDROID_NDK_VERSION }}-${{ matrix.android_abi }}-
             openvino-android-ccache-${{ runner.os }}-${{ env.ANDROID_NDK_VERSION }}-
             openvino-android-ccache-${{ runner.os }}-
@@ -103,6 +105,9 @@ jobs:
 
       - name: Install OpenVINO runtime
         run: python3 .github/scripts/nightly/prebuild.py install-openvino
+
+      - name: Build OpenVINO GenAI Java API
+        run: python3 .github/scripts/nightly/prebuild.py build-genai-java-api
 
       - name: Package Android prebuild
         id: package
