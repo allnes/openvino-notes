@@ -5,6 +5,7 @@ import com.itlab.domain.model.ContentItem
 import com.itlab.domain.model.DataSource
 import com.itlab.domain.model.Note
 import com.itlab.domain.repository.NotesRepository
+import com.itlab.domain.usecase.aiusecase.ReleaseNoteAiUseCase
 import com.itlab.domain.usecase.aiusecase.SuggestSummaryUseCase
 import com.itlab.domain.usecase.aiusecase.SuggestTagsUseCase
 import com.itlab.domain.usecase.noteusecase.ApplySummaryUseCase
@@ -55,8 +56,13 @@ class AIUseCasesTest {
         var summaryResult: String = "AI summary"
         var textTagsResult: Set<String> = setOf("text-tag-1", "text-tag-2")
         var imageTagsResult: Set<String> = setOf("image-tag-1", "image-tag-2")
+        var releaseCalled: Boolean = false
 
-        override suspend fun summarize(text: String): String {
+        override suspend fun summarize(
+            text: String,
+            maxInputTokens: Int,
+            maxNewTokens: Int,
+        ): String {
             summaryInput = text
             return summaryResult
         }
@@ -66,9 +72,24 @@ class AIUseCasesTest {
             return imageTagsResult
         }
 
-        override suspend fun tagTXT(text: String): Set<String> {
+        override suspend fun suggestTags(
+            text: String,
+            maxInputTokens: Int,
+            maxTags: Int,
+        ): Set<String> {
             textTagsInput = text
             return textTagsResult
+        }
+
+        override suspend fun rewrite(
+            text: String,
+            style: com.itlab.domain.ai.RewriteStyle,
+            maxInputTokens: Int,
+            maxNewTokens: Int,
+        ): String = text
+
+        override fun release() {
+            releaseCalled = true
         }
     }
 
@@ -170,6 +191,16 @@ class AIUseCasesTest {
             assertEquals(true, result.isFailure)
             assertEquals("Note not found: missing_id", result.exceptionOrNull()?.message)
         }
+
+    @Test
+    fun releaseNoteAi_releasesAiService() {
+        val ai = FakeNoteAiService()
+        val useCase = ReleaseNoteAiUseCase(ai)
+
+        useCase().getOrThrow()
+
+        assertEquals(true, ai.releaseCalled)
+    }
 
     @Test
     fun applySummary_updatesNoteSummary() =

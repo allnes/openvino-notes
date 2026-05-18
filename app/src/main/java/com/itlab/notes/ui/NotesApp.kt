@@ -171,6 +171,7 @@ private fun notesMain(
                 directoryName = screen.directory.name,
                 directoryId = screen.directory.id,
                 note = screen.note,
+                aiState = state.aiState,
                 onBack = { draft -> viewModel.onEvent(NotesUiEvent.LeaveEditor(draft)) },
                 onPersist = { draft ->
                     viewModel.onEvent(NotesUiEvent.PersistNote(draft))
@@ -180,6 +181,18 @@ private fun notesMain(
                 },
                 onToggleFavorite = {
                     viewModel.onEvent(NotesUiEvent.ToggleNoteFavorite(screen.note.id))
+                },
+                onSuggestSummary = { draft ->
+                    viewModel.onEvent(NotesUiEvent.SuggestSummary(draft))
+                },
+                onSuggestTags = { draft ->
+                    viewModel.onEvent(NotesUiEvent.SuggestTags(draft))
+                },
+                onRewrite = { draft ->
+                    viewModel.onEvent(NotesUiEvent.RewriteNote(draft))
+                },
+                onCancelAi = {
+                    viewModel.onEvent(NotesUiEvent.CancelAiGeneration)
                 },
             )
         }

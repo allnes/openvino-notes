@@ -1,11 +1,12 @@
 package com.itlab.domain.usecase.aiusecase
 
 import com.itlab.domain.ai.NoteAiService
+import com.itlab.domain.ai.RewriteStyle
 import com.itlab.domain.model.ContentItem
 import com.itlab.domain.model.Note
 import com.itlab.domain.repository.NotesRepository
 
-class SuggestSummaryUseCase(
+class RewriteNoteUseCase(
     private val ai: NoteAiService,
     private val repo: NotesRepository,
 ) {
@@ -16,7 +17,8 @@ class SuggestSummaryUseCase(
 
     suspend operator fun invoke(
         noteId: String,
-        maxInputTokens: Int = 512,
+        style: RewriteStyle = RewriteStyle.CLEANUP,
+        maxInputTokens: Int = 768,
         maxNewTokens: Int = 48,
     ): Result<String> =
         runCatching {
@@ -24,9 +26,9 @@ class SuggestSummaryUseCase(
                 repo.getNoteById(noteId)
                     ?: throw IllegalArgumentException("Note not found: $noteId")
 
-            val text = extractText(note)
-            ai.summarize(
-                text = text,
+            ai.rewrite(
+                text = extractText(note),
+                style = style,
                 maxInputTokens = maxInputTokens,
                 maxNewTokens = maxNewTokens,
             )

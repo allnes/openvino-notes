@@ -18,6 +18,8 @@ import com.itlab.notes.ui.notes.canCreateNotesInDirectory
 import com.itlab.notes.ui.notes.coerceDirectoryNameLength
 import com.itlab.notes.ui.notes.isVirtualDirectory
 import com.itlab.notes.ui.toSingleLineText
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -32,6 +34,10 @@ class NotesViewModel(
     )
         private set
     private var notesJob: Job? = null
+    private var aiJob: Job? = null
+    private var aiWarmUpJob: Job? = null
+    private var aiWarmUpStarted = false
+    private var aiReady = false
     private var latestFolders: List<NoteFolder> = emptyList()
     private var latestNotes: List<Note> = emptyList()
 
@@ -53,10 +59,22 @@ class NotesViewModel(
 
     override fun onEvent(event: NotesUiEvent) {
         when (event) {
-            is NotesUiEvent.OpenDirectory -> openDirectory(event.directory)
-            NotesUiEvent.BackToDirectories -> backToDirectories()
-            is NotesUiEvent.OpenNote -> openNote(event.note)
-            NotesUiEvent.CreateNote -> createNote()
+            is NotesUiEvent.OpenDirectory -> {
+                releaseAiResourcesIfEditorOpen()
+                openDirectory(event.directory)
+            }
+            NotesUiEvent.BackToDirectories -> {
+                releaseAiResources()
+                backToDirectories()
+            }
+            is NotesUiEvent.OpenNote -> {
+                cancelAiGeneration()
+                openNote(event.note)
+            }
+            NotesUiEvent.CreateNote -> {
+                cancelAiGeneration()
+                createNote()
+            }
             is NotesUiEvent.CreateDirectory -> {
                 val normalized =
                     event.name
@@ -81,10 +99,23 @@ class NotesViewModel(
                 }
             }
             is NotesUiEvent.ToggleNoteFavorite -> toggleNoteFavorite(event.noteId)
-            NotesUiEvent.BackToDirectoryNotes -> backToDirectoryNotes()
-            is NotesUiEvent.LeaveEditor -> leaveEditor(event.note)
-            is NotesUiEvent.SaveNote -> saveNote(event.note)
+            NotesUiEvent.BackToDirectoryNotes -> {
+                releaseAiResources()
+                backToDirectoryNotes()
+            }
+            is NotesUiEvent.LeaveEditor -> {
+                releaseAiResources()
+                leaveEditor(event.note)
+            }
+            is NotesUiEvent.SaveNote -> {
+                releaseAiResources()
+                saveNote(event.note)
+            }
             is NotesUiEvent.PersistNote -> persistNote(event.note)
+            is NotesUiEvent.SuggestSummary -> suggestAi(event.note, AiSuggestion.Summary)
+            is NotesUiEvent.SuggestTags -> suggestAi(event.note, AiSuggestion.Tags)
+            is NotesUiEvent.RewriteNote -> suggestAi(event.note, AiSuggestion.Rewrite)
+            NotesUiEvent.CancelAiGeneration -> cancelAiGeneration()
             is NotesUiEvent.DeleteNote -> {
                 viewModelScope.launch {
                     useCases.deleteNoteUseCase(event.noteId)
@@ -132,6 +163,7 @@ class NotesViewModel(
                 screen = NotesUiScreen.DirectoryNotes(directory = directory),
                 notes = emptyList(),
                 notesSearchQuery = "",
+                aiState = freshAiState(),
             )
         startNotesCollection(directory, searchQuery = "")
     }
@@ -197,6 +229,7 @@ class NotesViewModel(
                 screen = NotesUiScreen.Directories,
                 notes = emptyList(),
                 notesSearchQuery = "",
+                aiState = freshAiState(),
             )
     }
 
@@ -206,7 +239,9 @@ class NotesViewModel(
         uiState =
             uiState.copy(
                 screen = NotesUiScreen.NoteEditor(directory = dir, note = note),
+                aiState = freshAiState(),
             )
+        warmUpAi()
     }
 
     private fun createNote() {
@@ -218,13 +253,19 @@ class NotesViewModel(
         uiState =
             uiState.copy(
                 screen = NotesUiScreen.NoteEditor(directory = dir, note = newNote),
+                aiState = freshAiState(),
             )
+        warmUpAi()
     }
 
     private fun backToDirectoryNotes() {
         val editor = uiState.screen as? NotesUiScreen.NoteEditor ?: return
         val directory = editor.directory
-        uiState = uiState.copy(screen = NotesUiScreen.DirectoryNotes(directory = directory))
+        uiState =
+            uiState.copy(
+                screen = NotesUiScreen.DirectoryNotes(directory = directory),
+                aiState = freshAiState(),
+            )
         startNotesCollection(directory, uiState.notesSearchQuery)
     }
 
@@ -270,7 +311,11 @@ class NotesViewModel(
     }
 
     private fun navigateBackToDirectoryNotes(directory: DirectoryItemUi) {
-        uiState = uiState.copy(screen = NotesUiScreen.DirectoryNotes(directory = directory))
+        uiState =
+            uiState.copy(
+                screen = NotesUiScreen.DirectoryNotes(directory = directory),
+                aiState = freshAiState(),
+            )
         startNotesCollection(directory, uiState.notesSearchQuery)
     }
 
@@ -278,21 +323,166 @@ class NotesViewModel(
         note: NoteItemUi,
         directory: DirectoryItemUi,
     ): Boolean {
-        if (note.title.trim().isEmpty()) return false
-        val targetFolderId = note.folderId ?: directory.id.asDomainFolderId()
-        val existing = useCases.getNoteUseCase(note.id)
-        val result =
-            if (existing != null) {
-                useCases.updateNoteUseCase(existing.applyUiUpdate(note, targetFolderId))
-            } else {
-                useCases.createNoteUseCase(note.toDomain(folderId = targetFolderId))
-            }
-        if (result.isFailure) return false
+        val savedNote =
+            upsertEditorNote(note, directory)
+                .getOrElse { return false }
         val editor = uiState.screen as? NotesUiScreen.NoteEditor
         if (editor?.note?.id == note.id) {
-            uiState = uiState.copy(screen = editor.copy(note = note))
+            uiState = uiState.copy(screen = editor.copy(note = savedNote))
         }
         return true
+    }
+
+    private suspend fun upsertEditorNote(
+        note: NoteItemUi,
+        directory: DirectoryItemUi,
+    ): Result<NoteItemUi> =
+        runCatching {
+            require(note.title.trim().isNotEmpty()) { "Title is required" }
+            val targetFolderId = note.folderId ?: directory.id.asDomainFolderId()
+            val existing = useCases.getNoteUseCase(note.id)
+            if (existing != null) {
+                useCases.updateNoteUseCase(existing.applyUiUpdate(note, targetFolderId)).getOrThrow()
+                note.copy(folderId = targetFolderId)
+            } else {
+                val savedId = useCases.createNoteUseCase(note.toDomain(folderId = targetFolderId)).getOrThrow()
+                note.copy(id = savedId, folderId = targetFolderId)
+            }
+        }
+
+    private fun suggestAi(
+        note: NoteItemUi,
+        suggestion: AiSuggestion,
+    ) {
+        if (aiJob?.isActive == true) return
+        if (!uiState.aiState.canGenerate) {
+            warmUpAi()
+            return
+        }
+
+        val editor = uiState.screen as? NotesUiScreen.NoteEditor ?: return
+        val job =
+            viewModelScope.launch {
+                updateAiState { suggestion.startState(it) }
+                val savedNote =
+                    upsertEditorNote(note, editor.directory)
+                        .getOrElse { error ->
+                            updateAiState { suggestion.errorState(it, error) }
+                            return@launch
+                        }
+                updateEditorNote(savedNote)
+
+                val generated =
+                    generateAiSuggestion(
+                        suggestion = suggestion,
+                        savedNote = savedNote,
+                        useCases = useCases,
+                        ensureCurrentEditor = { uiState.requireCurrentEditorNote(savedNote.id) },
+                    )
+
+                generated
+                    .onSuccess { updatedNote ->
+                        if (uiState.isCurrentEditorNote(savedNote.id)) {
+                            updateEditorNote(updatedNote)
+                            updateAiState { suggestion.successState(it) }
+                        }
+                    }.onFailure { error ->
+                        if (error !is CancellationException && uiState.isCurrentEditorNote(savedNote.id)) {
+                            updateAiState { suggestion.errorState(it, error) }
+                        }
+                    }
+            }
+        aiJob = job
+        job.invokeOnCompletion {
+            if (aiJob === job) {
+                aiJob = null
+            }
+        }
+    }
+
+    private fun updateEditorNote(note: NoteItemUi) {
+        val editor = uiState.screen as? NotesUiScreen.NoteEditor ?: return
+        uiState =
+            uiState.copy(
+                screen =
+                    NotesUiScreen.NoteEditor(
+                        directory = editor.directory,
+                        note = note,
+                    ),
+            )
+    }
+
+    private fun updateAiState(update: (AiUiState) -> AiUiState) {
+        uiState = uiState.copy(aiState = update(uiState.aiState))
+    }
+
+    private fun freshAiState(): AiUiState =
+        AiUiState(
+            isWarmingUp = aiWarmUpJob?.isActive == true,
+            isReady = aiReady,
+        )
+
+    private fun cancelAiGeneration() {
+        aiJob?.cancel()
+        aiJob = null
+        updateAiState { freshAiState() }
+    }
+
+    private fun releaseAiResourcesIfEditorOpen() {
+        if (uiState.screen is NotesUiScreen.NoteEditor) {
+            releaseAiResources()
+        } else {
+            cancelAiGeneration()
+        }
+    }
+
+    private fun releaseAiResources() {
+        aiJob?.cancel()
+        aiJob = null
+        aiWarmUpJob?.cancel()
+        aiWarmUpJob = null
+        aiWarmUpStarted = false
+        aiReady = false
+        updateAiState { AiUiState() }
+        viewModelScope.launch(Dispatchers.Default) {
+            useCases.releaseNoteAiUseCase()
+        }
+    }
+
+    private fun warmUpAi() {
+        if (aiReady) {
+            updateAiState { it.copy(isWarmingUp = false, isReady = true, errorMessage = null) }
+            return
+        }
+        if (aiWarmUpStarted || aiWarmUpJob?.isActive == true) {
+            updateAiState { it.copy(isWarmingUp = true, isReady = false, errorMessage = null) }
+            return
+        }
+
+        aiWarmUpStarted = true
+        updateAiState { it.copy(isWarmingUp = true, isReady = false, errorMessage = null) }
+        aiWarmUpJob =
+            viewModelScope.launch {
+                val result = useCases.warmUpNoteAiUseCase()
+                if (result.isSuccess) {
+                    aiReady = true
+                    updateAiState { it.copy(isWarmingUp = false, isReady = true, errorMessage = null) }
+                } else {
+                    aiReady = false
+                    aiWarmUpStarted = false
+                    updateAiState {
+                        it.copy(
+                            isWarmingUp = false,
+                            isReady = false,
+                            errorMessage =
+                                result
+                                    .exceptionOrNull()
+                                    ?.userMessage("Unable to prepare AI model")
+                                    ?: "Unable to prepare AI model",
+                        )
+                    }
+                }
+            }
     }
 
     private fun recomputeDirectories() {
@@ -329,6 +519,9 @@ class NotesViewModel(
 
     override fun onCleared() {
         notesJob?.cancel()
+        aiJob?.cancel()
+        aiWarmUpJob?.cancel()
+        useCases.releaseNoteAiUseCase()
         super.onCleared()
     }
 }
@@ -348,6 +541,8 @@ internal fun Note.toUi(): NoteItemUi =
         folderId = folderId,
         attachments = contentItems.withoutTextItems(),
         isFavorite = isFavorite,
+        tags = tags,
+        summary = summary,
     )
 
 internal fun NoteItemUi.toContentItems(): List<ContentItem> =
@@ -364,6 +559,8 @@ internal fun NoteItemUi.toDomain(folderId: String?): Note =
         folderId = folderId,
         contentItems = toContentItems(),
         isFavorite = isFavorite,
+        tags = tags,
+        summary = summary,
     )
 
 internal fun Note.applyUiUpdate(
@@ -375,6 +572,8 @@ internal fun Note.applyUiUpdate(
         folderId = targetFolderId,
         contentItems = ui.toContentItems(),
         isFavorite = ui.isFavorite,
+        tags = ui.tags,
+        summary = ui.summary,
     )
 
 internal fun String.asDomainFolderId(): String? =

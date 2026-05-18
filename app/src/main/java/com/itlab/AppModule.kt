@@ -1,10 +1,18 @@
 package com.itlab
 
+import com.itlab.domain.usecase.aiusecase.ReleaseNoteAiUseCase
+import com.itlab.domain.usecase.aiusecase.RewriteNoteUseCase
+import com.itlab.domain.usecase.aiusecase.SuggestSummaryUseCase
+import com.itlab.domain.usecase.aiusecase.SuggestTagsUseCase
+import com.itlab.domain.usecase.aiusecase.WarmUpNoteAiUseCase
 import com.itlab.domain.usecase.folderusecase.CreateFolderUseCase
 import com.itlab.domain.usecase.folderusecase.DeleteFolderUseCase
 import com.itlab.domain.usecase.folderusecase.GetFolderUseCase
 import com.itlab.domain.usecase.folderusecase.ObserveFoldersUseCase
 import com.itlab.domain.usecase.folderusecase.UpdateFolderUseCase
+import com.itlab.domain.usecase.noteusecase.ApplyRewriteUseCase
+import com.itlab.domain.usecase.noteusecase.ApplySummaryUseCase
+import com.itlab.domain.usecase.noteusecase.ApplyTagsUseCase
 import com.itlab.domain.usecase.noteusecase.CreateNoteUseCase
 import com.itlab.domain.usecase.noteusecase.DeleteNoteUseCase
 import com.itlab.domain.usecase.noteusecase.GetAllFavoritesUseCase
@@ -50,6 +58,14 @@ val appModule =
         factory { SwitchFavoriteUseCase(get()) }
         factory { GetAllFavoritesUseCase(get()) }
         factory { GetNoteUseCase(get()) }
+        factory { SuggestSummaryUseCase(get(), get()) }
+        factory { SuggestTagsUseCase(get(), get()) }
+        factory { RewriteNoteUseCase(get(), get()) }
+        factory { WarmUpNoteAiUseCase(get()) }
+        factory { ReleaseNoteAiUseCase(get()) }
+        factory { ApplySummaryUseCase(get()) }
+        factory { ApplyTagsUseCase(get()) }
+        factory { ApplyRewriteUseCase(get()) }
         factory { UpdateFolderUseCase(get()) }
         factory { GetFolderUseCase(get()) }
         factory {
@@ -78,6 +94,14 @@ val appModule =
                 switchFavoriteUseCase = get(),
                 getAllFavoritesUseCase = get(),
                 getNoteUseCase = get(),
+                suggestSummaryUseCase = get(),
+                suggestTagsUseCase = get(),
+                rewriteNoteUseCase = get(),
+                warmUpNoteAiUseCase = get(),
+                releaseNoteAiUseCase = get(),
+                applySummaryUseCase = get(),
+                applyTagsUseCase = get(),
+                applyRewriteUseCase = get(),
             )
         }
 

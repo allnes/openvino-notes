@@ -1,0 +1,126 @@
+name: LLM Model Bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      model-id:
+        description: Hugging Face model id or OpenVINO model bundle id.
+        required: false
+        default: OpenVINO/Qwen3-1.7B-int4-ov
+      weight-format:
+        description: OpenVINO export weight format.
+        required: false
+        default: int4
+        type: choice
+        options:
+          - int4
+          - int8
+          - fp16
+      publish-prerelease:
+        description: Publish bundle to the rolling LLM model prerelease.
+        required: false
+        default: true
+        type: boolean
+
+env:
+  ANDROID_API_LEVEL: "37.0"
+  ANDROID_BUILD_TOOLS: "37.0.0"
+  JAVA_VERSION: "21"
+  LLM_MODEL_RELEASE_TAG: openvino-llm-models-nightly
+
+jobs:
+  llm-export:
+    name: Export OpenVINO LLM bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-android-gradle
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          android-api-level: ${{ env.ANDROID_API_LEVEL }}
+          android-build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
+
+      - name: Restore Hugging Face cache
+        uses: actions/cache@v4.2.4
+        with:
+          path: ~/.cache/huggingface
+          key: llm-hf-${{ runner.os }}-${{ inputs['model-id'] }}-${{ inputs['weight-format'] }}
+
+      - name: Build model bundle
+        run: |
+          ./gradlew :ai:packageOpenVinoLlmModelBundle \
+            -PonDeviceLlmModelId="${{ inputs['model-id'] }}" \
+            -PonDeviceLlmWeightFormat="${{ inputs['weight-format'] }}"
+
+      - name: Record model bundle digest
+        id: bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="$(find ai/build/llm/model-bundles -maxdepth 1 -name '*.zip' -print -quit)"
+          if [[ -z "$bundle" ]]; then
+            echo "No model bundle was produced." >&2
+            exit 1
+          fi
+          sha256sum "$bundle" > "${bundle}.sha256"
+          echo "path=$bundle" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$bundle")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload model bundle
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: on-device-llm-openvino-${{ inputs['weight-format'] }}
+          path: |
+            ai/build/llm/model-bundles/*.zip
+            ai/build/llm/model-bundles/*.zip.sha256
+          if-no-files-found: error
+
+      - name: Publish rolling LLM model prerelease
+        if: inputs.publish-prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODEL_ID: ${{ inputs['model-id'] }}
+          WEIGHT_FORMAT: ${{ inputs['weight-format'] }}
+          BUNDLE_PATH: ${{ steps.bundle.outputs.path }}
+          BUNDLE_NAME: ${{ steps.bundle.outputs.name }}
+        run: |
+          set -euo pipefail
+          release_notes="$(mktemp)"
+          {
+            echo "Rolling OpenVINO LLM model bundle for Android."
+            echo
+            echo "- model: ${MODEL_ID}"
+            echo "- weight format: ${WEIGHT_FORMAT}"
+            echo "- source commit: ${GITHUB_SHA}"
+            echo "- bundle: ${BUNDLE_NAME}"
+            echo
+            echo "The zip contains openvino_llm_manifest.json with per-file hashes."
+          } > "$release_notes"
+
+          if gh release view "$LLM_MODEL_RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$LLM_MODEL_RELEASE_TAG" \
+              --title "OpenVINO LLM model bundle nightly" \
+              --notes-file "$release_notes" \
+              --prerelease \
+              --latest=false
+          else
+            gh release create "$LLM_MODEL_RELEASE_TAG" \
+              --target "$GITHUB_SHA" \
+              --title "OpenVINO LLM model bundle nightly" \
+              --notes-file "$release_notes" \
+              --prerelease \
+              --latest=false
+          fi
+
+          gh release delete-asset "$LLM_MODEL_RELEASE_TAG" "$BUNDLE_NAME" --yes >/dev/null 2>&1 || true
+          gh release delete-asset "$LLM_MODEL_RELEASE_TAG" "${BUNDLE_NAME}.sha256" --yes >/dev/null 2>&1 || true
+          gh release upload "$LLM_MODEL_RELEASE_TAG" "$BUNDLE_PATH" "${BUNDLE_PATH}.sha256" --clobber

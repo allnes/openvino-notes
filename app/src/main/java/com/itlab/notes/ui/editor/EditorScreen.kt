@@ -101,6 +101,7 @@ import com.itlab.notes.media.ImageRegionLuminance
 import com.itlab.notes.media.NoteMediaImport
 import com.itlab.notes.media.imageAttachments
 import com.itlab.notes.media.toCoilModel
+import com.itlab.notes.ui.AiUiState
 import com.itlab.notes.ui.asDomainFolderId
 import com.itlab.notes.ui.notes.NoteItemUi
 import com.itlab.notes.ui.toSingleLineText
@@ -124,24 +125,21 @@ private data class EditorAttachmentsViewerState(
 
 private fun String.truncateForEditorTopBar(): String = take(EDITOR_TOP_BAR_TITLE_MAX_LENGTH)
 
-private const val EDITOR_AI_UI_PREVIEW = true
-
-private const val EDITOR_AI_PREVIEW_SUMMARY =
-    "This note is about planning the product launch: goals for the week, " +
-        "open questions for the team, and a short list of next steps."
-private val editorAiPreviewTags =
-    listOf("Work", "Planning", "Product", "Follow-up", "Study", "Study", "Study")
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun editorScreen(
     directoryName: String,
     directoryId: String,
     note: NoteItemUi,
+    aiState: AiUiState,
     onBack: (NoteItemUi) -> Unit,
     onPersist: (NoteItemUi) -> Unit,
     onSave: (NoteItemUi) -> Unit,
     onToggleFavorite: () -> Unit,
+    onSuggestSummary: (NoteItemUi) -> Unit,
+    onSuggestTags: (NoteItemUi) -> Unit,
+    onRewrite: (NoteItemUi) -> Unit,
+    onCancelAi: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val context = LocalContext.current
@@ -178,8 +176,8 @@ fun editorScreen(
             )
     }
 
-    LaunchedEffect(note.isFavorite) {
-        editorVm.syncFavoriteFromNote(note.isFavorite)
+    LaunchedEffect(note.id, note.title, note.content, note.tags, note.summary, note.isFavorite) {
+        editorVm.syncGeneratedFields(note)
     }
 
     val leaveEditor = {
@@ -233,13 +231,25 @@ fun editorScreen(
                     .fillMaxSize()
                     .padding(paddingValues),
         ) {
-            if (EDITOR_AI_UI_PREVIEW && editorAiPreviewTags.isNotEmpty()) {
+            editorAiActionsBar(
+                aiState = aiState,
+                onSuggestSummary = { onSuggestSummary(editorVm.buildUpdatedNote()) },
+                onSuggestTags = { onSuggestTags(editorVm.buildUpdatedNote()) },
+                onRewrite = { onRewrite(editorVm.buildUpdatedNote()) },
+                onCancelAi = onCancelAi,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = EditorHorizontalGutter, vertical = 8.dp),
+            )
+            if (note.tags.isNotEmpty()) {
                 editorAiTagsBar(
-                    tags = editorAiPreviewTags,
+                    tags = note.tags.toList(),
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = EditorHorizontalGutter, vertical = 8.dp),
+                            .padding(horizontal = EditorHorizontalGutter)
+                            .padding(bottom = 8.dp),
                 )
             }
             editorContent(
@@ -247,7 +257,7 @@ fun editorScreen(
                 titleHasDuplicate = titleHasDuplicate,
                 content = editorVm.content,
                 attachments = editorVm.attachments,
-                aiSummary = if (EDITOR_AI_UI_PREVIEW) EDITOR_AI_PREVIEW_SUMMARY else null,
+                aiSummary = note.summary,
                 onTitleChange = editorVm::onTitleChange,
                 onContentChange = editorVm::onContentChange,
                 onAttachmentClick = { item ->
@@ -368,6 +378,100 @@ private fun editorFab(
             tint = colors.onPrimary,
         )
     }
+}
+
+@Composable
+private fun editorAiActionsBar(
+    aiState: AiUiState,
+    onSuggestSummary: () -> Unit,
+    onSuggestTags: () -> Unit,
+    onRewrite: () -> Unit,
+    onCancelAi: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val statusText =
+        when {
+            aiState.isWarmingUp -> "Preparing AI model..."
+            aiState.isGeneratingSummary -> "Generating summary..."
+            aiState.isGeneratingTags -> "Suggesting tags..."
+            aiState.isRewriting -> "Rewriting note..."
+            aiState.errorMessage != null -> aiState.errorMessage
+            else -> null
+        }
+
+    Column(modifier = modifier) {
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 0.dp),
+        ) {
+            item {
+                editorAiActionChip(
+                    label = "Summary",
+                    enabled = aiState.canGenerate,
+                    onClick = onSuggestSummary,
+                )
+            }
+            item {
+                editorAiActionChip(
+                    label = "Tags",
+                    enabled = aiState.canGenerate,
+                    onClick = onSuggestTags,
+                )
+            }
+            item {
+                editorAiActionChip(
+                    label = "Rewrite",
+                    enabled = aiState.canGenerate,
+                    onClick = onRewrite,
+                )
+            }
+            if (aiState.isGenerating) {
+                item {
+                    editorAiActionChip(
+                        label = "Cancel",
+                        enabled = true,
+                        selected = true,
+                        onClick = onCancelAi,
+                    )
+                }
+            }
+        }
+
+        if (!statusText.isNullOrBlank()) {
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.labelMedium,
+                color =
+                    if (aiState.errorMessage != null) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun editorAiActionChip(
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    selected: Boolean = false,
+) {
+    FilterChip(
+        selected = selected,
+        enabled = enabled,
+        onClick = onClick,
+        label = {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+            )
+        },
+        shape = MaterialTheme.shapes.extraLarge,
+    )
 }
 
 @Composable

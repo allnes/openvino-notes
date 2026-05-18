@@ -24,9 +24,25 @@ data class NotesUiState(
     val screen: NotesUiScreen = NotesUiScreen.Directories,
     val directories: List<DirectoryItemUi> = emptyList(),
     val notes: List<NoteItemUi> = emptyList(),
+    val aiState: AiUiState = AiUiState(),
     val notesSearchQuery: String = "",
     val directorySearchQuery: String = "",
 )
+
+data class AiUiState(
+    val isWarmingUp: Boolean = false,
+    val isReady: Boolean = false,
+    val isGeneratingSummary: Boolean = false,
+    val isGeneratingTags: Boolean = false,
+    val isRewriting: Boolean = false,
+    val errorMessage: String? = null,
+) {
+    val isGenerating: Boolean
+        get() = isGeneratingSummary || isGeneratingTags || isRewriting
+
+    val canGenerate: Boolean
+        get() = isReady && !isWarmingUp && !isGenerating
+}
 
 sealed interface NotesUiEvent {
     data class OpenDirectory(
@@ -64,6 +80,20 @@ sealed interface NotesUiEvent {
     data class PersistNote(
         val note: NoteItemUi,
     ) : NotesUiEvent
+
+    data class SuggestSummary(
+        val note: NoteItemUi,
+    ) : NotesUiEvent
+
+    data class SuggestTags(
+        val note: NoteItemUi,
+    ) : NotesUiEvent
+
+    data class RewriteNote(
+        val note: NoteItemUi,
+    ) : NotesUiEvent
+
+    data object CancelAiGeneration : NotesUiEvent
 
     data class DeleteNote(
         val noteId: String,

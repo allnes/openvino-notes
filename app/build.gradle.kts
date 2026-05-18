@@ -1,11 +1,25 @@
 import io.gitlab.arturbosch.detekt.extensions.DetektExtension
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     id("com.google.gms.google-services")
 }
+
+val releaseKeystorePropertiesFile = layout.projectDirectory.file("keystore.properties").asFile
+val releaseKeystoreProperties =
+    Properties().apply {
+        if (releaseKeystorePropertiesFile.isFile) {
+            releaseKeystorePropertiesFile.inputStream().use(::load)
+        }
+    }
+val hasLocalReleaseKeystore = releaseKeystorePropertiesFile.isFile
+
+fun releaseKeystoreProperty(name: String): String =
+    releaseKeystoreProperties.getProperty(name)
+        ?: error("Missing '$name' in ${releaseKeystorePropertiesFile.relativeTo(rootProject.projectDir)}")
 
 android {
     namespace = "com.itlab.notes"
@@ -23,9 +37,23 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasLocalReleaseKeystore) {
+            create("release") {
+                storeFile = layout.projectDirectory.file(releaseKeystoreProperty("storeFile")).asFile
+                storePassword = releaseKeystoreProperty("storePassword")
+                keyAlias = releaseKeystoreProperty("keyAlias")
+                keyPassword = releaseKeystoreProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasLocalReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -38,6 +66,14 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    androidResources {
+        noCompress += "bin"
+    }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
     testOptions {
         managedDevices {

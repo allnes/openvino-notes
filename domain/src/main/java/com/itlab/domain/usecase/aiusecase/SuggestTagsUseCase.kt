@@ -21,7 +21,11 @@ class SuggestTagsUseCase(
                 image.source.localPath ?: image.source.remoteUrl
             }
 
-    suspend operator fun invoke(noteId: String): Result<Set<String>> =
+    suspend operator fun invoke(
+        noteId: String,
+        maxInputTokens: Int = 384,
+        maxTags: Int = 4,
+    ): Result<Set<String>> =
         runCatching {
             val note =
                 repo.getNoteById(noteId)
@@ -29,7 +33,14 @@ class SuggestTagsUseCase(
 
             val text = extractText(note)
             val imageUrls = extractImages(note)
+            val textTags =
+                ai.suggestTags(
+                    text = text,
+                    maxInputTokens = maxInputTokens,
+                    maxTags = maxTags,
+                )
+            val imageTags = ai.tagIMGs(imageUrls)
 
-            ai.tagTXT(text) + ai.tagIMGs(imageUrls)
+            (textTags + imageTags).take(maxTags).toSet()
         }
 }
