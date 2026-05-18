@@ -59,9 +59,13 @@ val openvinoAndroidRuntimeJniAbiDir =
 val openvinoRuntimeAssetRootDir = layout.buildDirectory.dir("generated/openvinoRuntimeAssets")
 val openvinoRuntimeAssetDir = openvinoRuntimeAssetRootDir.map { it.dir("openvino-runtime") }
 val openvinoJavaApiJar =
-    openvinoAndroidCommonPackageDir.map { it.file("java/openvino-java-api-${openvinoAndroidPrebuildChannel.get()}-android.jar") }
+    openvinoAndroidCommonPackageDir.map {
+        it.file("java/openvino-java-api-${openvinoAndroidPrebuildChannel.get()}-android.jar")
+    }
 val openvinoGenAiJavaApiJar =
-    openvinoAndroidCommonPackageDir.map { it.file("java/openvino-genai-java-api-main-android.jar") }
+    openvinoAndroidCommonPackageDir.map {
+        it.file("java/openvino-genai-java-api-main-android.jar")
+    }
 
 val onDeviceLlmWeightFormat = providers.gradleProperty("onDeviceLlmWeightFormat").orElse("int4")
 val onDeviceLlmBundleRepo =
