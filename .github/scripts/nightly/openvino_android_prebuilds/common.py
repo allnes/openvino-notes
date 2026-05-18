@@ -117,7 +117,7 @@ class BuildConfig(BaseSettings):
     )
     onetbb_repo: str = Field("https://github.com/uxlfoundation/oneTBB.git", validation_alias="ONETBB_REPO")
     android_abi: str = Field("arm64-v8a", validation_alias="ANDROID_ABI")
-    android_platform: str = Field("35", validation_alias="ANDROID_PLATFORM")
+    android_platform: str = Field("33", validation_alias="ANDROID_PLATFORM")
     android_ndk_version: str = Field("29.0.14206865", validation_alias="ANDROID_NDK_VERSION")
     package_common: bool = Field(True, validation_alias=AliasChoices("PACKAGE_COMMON", "PUBLISH_COMMON_PACKAGE"))
     android_sdk_root: Path = Field(validation_alias=AliasChoices("ANDROID_SDK_ROOT", "ANDROID_HOME"))
