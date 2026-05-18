@@ -11,6 +11,7 @@ env:
   GENAI_JAVA_API_REF: "main"
   OPENVINO_CONTRIB_REF: "master"
   ONETBB_REF: "v2023.0.0"
+  PACKAGE_CHANNEL: "nightly"
   OPENVINO_REPO: "https://github.com/embedded-dev-research/openvino.git"
   OPENVINO_CONTRIB_REPO: "https://github.com/openvinotoolkit/openvino_contrib.git"
   OPENVINO_GENAI_REPO: "https://github.com/openvinotoolkit/openvino.genai.git"

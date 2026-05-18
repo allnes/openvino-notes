@@ -107,6 +107,7 @@ class BuildConfig(BaseSettings):
     genai_java_api_ref: str = Field("main", validation_alias="GENAI_JAVA_API_REF")
     openvino_contrib_ref: str = Field("master", validation_alias="OPENVINO_CONTRIB_REF")
     onetbb_ref: str = Field("v2023.0.0", validation_alias="ONETBB_REF")
+    package_channel: str = Field("nightly", validation_alias="PACKAGE_CHANNEL")
     openvino_repo: str = Field("https://github.com/embedded-dev-research/openvino.git", validation_alias="OPENVINO_REPO")
     openvino_contrib_repo: str = Field(
         "https://github.com/openvinotoolkit/openvino_contrib.git",
@@ -179,7 +180,7 @@ class BuildConfig(BaseSettings):
 
     @property
     def package_ref(self) -> str:
-        return safe_filename_part(self.openvino_ref)
+        return safe_filename_part(self.package_channel)
 
     @property
     def genai_java_api_package_ref(self) -> str:
