@@ -23,7 +23,7 @@ What is intentionally still limited:
 
 - image tagging is not implemented in the text LLM path
 - model and OpenVINO runtime bundles are large and are consumed from release assets instead of being stored in git
-- full model-behavior validation requires an `arm64-v8a` Android target; the Gradle host can be Linux x86_64 CI when a compatible device is available over ADB
+- full model-behavior validation requires an Android target matching the selected OpenVINO runtime prebuild ABI; `arm64-v8a` is the default, and `x86_64` is selected with `-PopenvinoAndroidAbi=x86_64`
 
 ## Main Work Areas
 

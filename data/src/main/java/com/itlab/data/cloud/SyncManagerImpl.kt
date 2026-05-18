@@ -6,6 +6,7 @@ import com.itlab.data.entity.MediaEntity
 import com.itlab.data.mapper.NoteEntityJsonConverter
 import com.itlab.domain.cloud.CloudDataSource
 import com.itlab.domain.cloud.CloudMediaMetadata
+import com.itlab.domain.cloud.DomainFile // ДОБАВИЛИ ИМПОРТ
 import com.itlab.domain.cloud.Result
 import com.itlab.domain.cloud.SyncManager
 import com.itlab.domain.cloud.SyncState
@@ -91,7 +92,7 @@ class SyncManagerImpl(
                 val result =
                     cloudDataSource.uploadMedia(
                         key = "users/$userId/media/${media.noteId}_${media.id}",
-                        file = file,
+                        file = DomainFile(file.absolutePath), // ИЗМЕНЕНИЕ: Обернули в DomainFile
                         mimeType = media.mimeType,
                     )
                 if (result is Result.Success) {
@@ -170,7 +171,7 @@ class SyncManagerImpl(
         val destination = File(context.filesDir, "media/$actualMediaId")
         destination.parentFile?.mkdirs()
 
-        val downloadResult = cloudDataSource.downloadMedia(mediaMeta.key, destination)
+        val downloadResult = cloudDataSource.downloadMedia(mediaMeta.key, DomainFile(destination.absolutePath))
 
         if (downloadResult is Result.Success) {
             val cloudMimeType = mediaMeta.mimeType

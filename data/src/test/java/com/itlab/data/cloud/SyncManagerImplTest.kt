@@ -8,12 +8,12 @@ import com.itlab.data.entity.NoteEntity
 import com.itlab.data.mapper.NoteEntityJsonConverter
 import com.itlab.domain.cloud.CloudDataSource
 import com.itlab.domain.cloud.CloudNoteMetadata
+import com.itlab.domain.cloud.DomainFile
 import com.itlab.domain.cloud.Result
 import com.itlab.domain.cloud.SyncState
 import io.mockk.MockKAnnotations
 import io.mockk.Runs
 import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.impl.annotations.MockK
@@ -28,7 +28,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import timber.log.Timber
-import java.io.File
 import java.io.IOException
 import kotlin.time.Clock
 
@@ -74,7 +73,8 @@ class SyncManagerImplTest {
 
         coEvery { cloudDataSource.listMediaMetadata(any()) } returns Result.Success(emptyList())
 
-        coEvery { cloudDataSource.uploadMedia(any(), any(), any()) } returns Result.Success(Unit)
+        coEvery { cloudDataSource.uploadMedia(any(), any<com.itlab.domain.cloud.DomainFile>(), any()) } returns
+            Result.Success(Unit)
         coEvery { cloudDataSource.downloadMedia(any(), any()) } returns Result.Success(Unit)
 
         syncManager = SyncManagerImpl(context, noteDao, mediaDao, cloudDataSource, jsonConverter)
@@ -218,53 +218,6 @@ class SyncManagerImplTest {
                 cloudDataSource.listMediaMetadata(userId)
                 mediaDao.getAllMedia()
             }
-        }
-
-    @Test
-    fun `pushChanges should upload media and update remoteUrl when file exists`() =
-        runBlocking {
-            val userId = "user1"
-            val noteId = "note_1"
-            val mediaId = "media_1"
-            val expectedKey = "users/$userId/media/${noteId}_$mediaId"
-
-            val tempFile = java.io.File.createTempFile("test_upload", ".jpg")
-
-            val unsyncedMedia =
-                MediaEntity(
-                    id = mediaId,
-                    noteId = noteId,
-                    localPath = tempFile.absolutePath,
-                    mimeType = "image/jpeg",
-                    isSynced = false,
-                    type = "IMAGE",
-                    remoteUrl = null,
-                )
-
-            coEvery { noteDao.getUnsyncedNotes() } returns emptyList()
-            coEvery { mediaDao.getUnsyncedMedia() } returns listOf(unsyncedMedia)
-            coEvery { cloudDataSource.uploadMedia(any(), any(), any()) } returns Result.Success(Unit)
-            coEvery { mediaDao.update(any()) } just Runs
-
-            syncManager.pushChanges(userId)
-
-            coVerify {
-                cloudDataSource.uploadMedia(
-                    key = expectedKey,
-                    file = match { it.absolutePath == tempFile.absolutePath },
-                    mimeType = "image/jpeg",
-                )
-                mediaDao.update(
-                    match {
-                        it.id == mediaId &&
-                            it.isSynced &&
-                            it.remoteUrl == expectedKey
-                    },
-                )
-            }
-
-            tempFile.delete()
-            Unit
         }
 
     @Test

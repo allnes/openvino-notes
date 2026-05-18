@@ -8,18 +8,13 @@ plugins {
     id("com.google.gms.google-services")
 }
 
-val releaseKeystorePropertiesFile = layout.projectDirectory.file("keystore.properties").asFile
-val releaseKeystoreProperties =
+val keystorePropertiesFile = layout.projectDirectory.file("keystore.properties").asFile
+val keystoreProperties =
     Properties().apply {
-        if (releaseKeystorePropertiesFile.isFile) {
-            releaseKeystorePropertiesFile.inputStream().use(::load)
+        if (keystorePropertiesFile.exists()) {
+            keystorePropertiesFile.inputStream().use(::load)
         }
     }
-val hasLocalReleaseKeystore = releaseKeystorePropertiesFile.isFile
-
-fun releaseKeystoreProperty(name: String): String =
-    releaseKeystoreProperties.getProperty(name)
-        ?: error("Missing '$name' in ${releaseKeystorePropertiesFile.relativeTo(rootProject.projectDir)}")
 
 android {
     namespace = "com.itlab.notes"
@@ -38,22 +33,22 @@ android {
     }
 
     signingConfigs {
-        if (hasLocalReleaseKeystore) {
+        if (keystorePropertiesFile.exists()) {
             create("release") {
-                storeFile = layout.projectDirectory.file(releaseKeystoreProperty("storeFile")).asFile
-                storePassword = releaseKeystoreProperty("storePassword")
-                keyAlias = releaseKeystoreProperty("keyAlias")
-                keyPassword = releaseKeystoreProperty("keyPassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storePassword = keystoreProperties.getProperty("storePassword")
+                storeFile = file(keystoreProperties.getProperty("storeFile")!!)
             }
         }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            if (hasLocalReleaseKeystore) {
+            if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
+            isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

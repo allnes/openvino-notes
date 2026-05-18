@@ -53,6 +53,7 @@ def checkout_sources(config: BuildConfig) -> None:
     clone_ref(config.openvino_repo, config.openvino_ref, config.src_dir / "openvino")
     clone_ref(config.openvino_contrib_repo, config.openvino_contrib_ref, config.src_dir / "openvino_contrib")
     clone_ref(config.openvino_genai_repo, config.openvino_genai_ref, config.src_dir / "openvino.genai")
+    clone_ref(config.genai_java_api_repo, config.genai_java_api_ref, config.src_dir / "genai-java-api")
     clone_ref(config.onetbb_repo, config.onetbb_ref, config.src_dir / "oneTBB")
 
 
@@ -67,6 +68,8 @@ def record_source_manifest(config: BuildConfig) -> None:
         f"openvino_commit={commit_hash(config.src_dir / 'openvino')}",
         f"openvino_genai_ref={config.openvino_genai_ref}",
         f"openvino_genai_commit={commit_hash(config.src_dir / 'openvino.genai')}",
+        f"genai_java_api_ref={config.genai_java_api_ref}",
+        f"genai_java_api_commit={commit_hash(config.src_dir / 'genai-java-api')}",
         f"openvino_contrib_ref={config.openvino_contrib_ref}",
         f"openvino_contrib_commit={commit_hash(config.src_dir / 'openvino_contrib')}",
         f"onetbb_ref={config.onetbb_ref}",

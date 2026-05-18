@@ -1,7 +1,11 @@
 package com.itlab.domain.cloud
 
-import java.io.File
 import kotlin.time.Instant
+
+@JvmInline
+value class DomainFile(
+    val path: String,
+)
 
 sealed interface Result<out T> {
     data class Success<out T>(
@@ -29,13 +33,13 @@ interface CloudDataSource {
 
     suspend fun uploadMedia(
         key: String,
-        file: File,
+        file: DomainFile,
         mimeType: String,
     ): Result<Unit>
 
     suspend fun downloadMedia(
         key: String,
-        destination: File,
+        destination: DomainFile,
     ): Result<Unit>
 
     suspend fun deleteMedia(key: String): Result<Unit>

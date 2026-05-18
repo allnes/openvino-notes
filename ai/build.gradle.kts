@@ -4,52 +4,66 @@ plugins {
     alias(libs.plugins.android.library)
 }
 
-val openvinoGenAiAndroidDir = providers.gradleProperty("openvinoGenAiAndroidDir")
 val openvinoAndroidPrebuildRepo =
     providers.gradleProperty("openvinoAndroidPrebuildRepo").orElse("embedded-dev-research/openvino-notes")
 val openvinoAndroidPrebuildReleaseTag =
     providers.gradleProperty("openvinoAndroidPrebuildReleaseTag").orElse("openvino-android-prebuilds-nightly")
-val openvinoAndroidPrebuildArtifactName =
+val openvinoAndroidPrebuildChannel =
+    providers.gradleProperty("openvinoAndroidPrebuildChannel").orElse("nightly")
+val openvinoAndroidAbi =
+    providers.gradleProperty("openvinoAndroidAbi").orElse("arm64-v8a")
+val openvinoAndroidCommonArtifactName =
     providers
-        .gradleProperty("openvinoAndroidPrebuildArtifactName")
-        .orElse("openvino-android-arm64-v8a-android-mbind-compat.zip")
-val openvinoAndroidPrebuildPackageName =
+        .gradleProperty("openvinoAndroidCommonArtifactName")
+        .orElse(openvinoAndroidPrebuildChannel.map { "openvino-android-common-$it.zip" })
+val openvinoAndroidRuntimeArtifactName =
     providers
-        .gradleProperty("openvinoAndroidPrebuildPackageName")
-        .orElse("openvino-android-arm64-v8a-android-mbind-compat")
+        .gradleProperty("openvinoAndroidRuntimeArtifactName")
+        .orElse(
+            providers.provider {
+                "openvino-android-runtime-${openvinoAndroidAbi.get()}-${openvinoAndroidPrebuildChannel.get()}.zip"
+            },
+        )
+val openvinoAndroidCommonPackageName =
+    providers
+        .gradleProperty("openvinoAndroidCommonPackageName")
+        .orElse(openvinoAndroidPrebuildChannel.map { "openvino-android-common-$it" })
+val openvinoAndroidRuntimePackageName =
+    providers
+        .gradleProperty("openvinoAndroidRuntimePackageName")
+        .orElse(
+            providers.provider {
+                "openvino-android-runtime-${openvinoAndroidAbi.get()}-${openvinoAndroidPrebuildChannel.get()}"
+            },
+        )
 val openvinoAndroidPrebuildDownloadDir =
     layout.buildDirectory.dir("openvino/prebuild/download/${openvinoAndroidPrebuildReleaseTag.get()}")
 val openvinoAndroidPrebuildExtractDir =
     layout.buildDirectory.dir("openvino/prebuild/extracted/${openvinoAndroidPrebuildReleaseTag.get()}")
-val openvinoAndroidPrebuildArchive =
-    openvinoAndroidPrebuildDownloadDir.map { it.file(openvinoAndroidPrebuildArtifactName.get()) }
-val openvinoAndroidPrebuildArchiveMetadata =
-    openvinoAndroidPrebuildDownloadDir.map { it.file("${openvinoAndroidPrebuildArtifactName.get()}.metadata.json") }
-val openvinoAndroidPrebuildPackageDir =
-    openvinoAndroidPrebuildExtractDir.map { it.dir(openvinoAndroidPrebuildPackageName.get()) }
-val resolvedOpenvinoGenAiAndroidDir =
-    openvinoGenAiAndroidDir.orElse(openvinoAndroidPrebuildPackageDir.map { it.asFile.absolutePath })
-val genaiJavaApiDir =
-    providers.gradleProperty("genaiJavaApiDir").orElse(
-        providers.provider {
-            val checkoutDir = rootProject.layout.projectDirectory.dir("../genai-java-api")
-            checkoutDir.asFile.absolutePath
-        },
-    )
-val genaiJavaApiProjectDir = file(genaiJavaApiDir.get())
-val openvinoRuntimeCmakeDir =
-    resolvedOpenvinoGenAiAndroidDir.map { packageDir ->
-        file(packageDir).resolve("runtime/cmake").absolutePath
-    }
-val openvinoAndroidAbi = "arm64-v8a"
+val openvinoAndroidCommonArchive =
+    openvinoAndroidPrebuildDownloadDir.map { it.file(openvinoAndroidCommonArtifactName.get()) }
+val openvinoAndroidCommonArchiveMetadata =
+    openvinoAndroidPrebuildDownloadDir.map { it.file("${openvinoAndroidCommonArtifactName.get()}.metadata.json") }
+val openvinoAndroidRuntimeArchive =
+    openvinoAndroidPrebuildDownloadDir.map { it.file(openvinoAndroidRuntimeArtifactName.get()) }
+val openvinoAndroidRuntimeArchiveMetadata =
+    openvinoAndroidPrebuildDownloadDir.map { it.file("${openvinoAndroidRuntimeArtifactName.get()}.metadata.json") }
+val openvinoAndroidCommonPackageDir =
+    openvinoAndroidPrebuildExtractDir.map { it.dir(openvinoAndroidCommonPackageName.get()) }
+val openvinoAndroidRuntimePackageDir =
+    openvinoAndroidPrebuildExtractDir.map { it.dir(openvinoAndroidRuntimePackageName.get()) }
+val openvinoAndroidRuntimeJniRootDir =
+    openvinoAndroidRuntimePackageDir.map { it.dir("android-jni") }
+val openvinoAndroidRuntimeJniAbiDir =
+    openvinoAndroidRuntimePackageDir.map { it.dir("android-jni/${openvinoAndroidAbi.get()}") }
 val openvinoRuntimeAssetRootDir = layout.buildDirectory.dir("generated/openvinoRuntimeAssets")
 val openvinoRuntimeAssetDir = openvinoRuntimeAssetRootDir.map { it.dir("openvino-runtime") }
-val onDeviceLlmModelId =
-    providers.gradleProperty("onDeviceLlmModelId").orElse("OpenVINO/Qwen3-1.7B-int4-ov")
+val openvinoJavaApiJar =
+    openvinoAndroidCommonPackageDir.map { it.file("java/openvino-java-api-${openvinoAndroidPrebuildChannel.get()}-android.jar") }
+val openvinoGenAiJavaApiJar =
+    openvinoAndroidCommonPackageDir.map { it.file("java/openvino-genai-java-api-main-android.jar") }
+
 val onDeviceLlmWeightFormat = providers.gradleProperty("onDeviceLlmWeightFormat").orElse("int4")
-val onDeviceLlmPythonVenvDir = layout.buildDirectory.dir("llm/python-venv")
-val onDeviceLlmExportDir = layout.buildDirectory.dir("llm/on-device-llm-openvino")
-val onDeviceLlmBundleDir = layout.buildDirectory.dir("llm/model-bundles")
 val onDeviceLlmBundleRepo =
     providers.gradleProperty("onDeviceLlmBundleRepo").orElse(openvinoAndroidPrebuildRepo)
 val onDeviceLlmBundleReleaseTag =
@@ -85,41 +99,16 @@ android {
         consumerProguardFiles("consumer-rules.pro")
 
         ndk {
-            abiFilters += openvinoAndroidAbi
-        }
-
-        externalNativeBuild {
-            cmake {
-                targets += "ov_genai_java_jni"
-                arguments +=
-                    listOf(
-                        "-DOV_GENAI_JNI_MODE=REAL",
-                        "-DOpenVINO_DIR=${openvinoRuntimeCmakeDir.get()}",
-                        "-DOpenVINOGenAI_DIR=${openvinoRuntimeCmakeDir.get()}",
-                        "-DANDROID_STL=c++_shared",
-                    )
-            }
-        }
-    }
-
-    externalNativeBuild {
-        cmake {
-            path = genaiJavaApiProjectDir.resolve("CMakeLists.txt")
+            abiFilters += openvinoAndroidAbi.get()
         }
     }
 
     sourceSets {
         getByName("main") {
             jniLibs.directories.clear()
-            jniLibs.directories.add(
-                file(resolvedOpenvinoGenAiAndroidDir.get())
-                    .resolve("android-jni")
-                    .absolutePath,
-            )
+            jniLibs.directories.add(openvinoAndroidRuntimeJniRootDir.get().asFile.absolutePath)
             assets.directories.add(openvinoRuntimeAssetRootDir.get().asFile.absolutePath)
             assets.directories.add(onDeviceLlmAssetRootDir.get().asFile.absolutePath)
-            java.srcDir(genaiJavaApiProjectDir.resolve("src/main/java"))
-            java.srcDir(genaiJavaApiProjectDir.resolve("src/android/java"))
         }
     }
 
@@ -141,15 +130,8 @@ android {
     }
 
     lint {
-        // The OpenVINO GenAI Android prebuild used by this module is arm64-v8a only.
+        // The OpenVINO GenAI Android runtime prebuild is selected by openvinoAndroidAbi.
         disable += "ChromeOsAbiSupport"
-        // genai-java-api is consumed as an external Java wrapper source; its API lint policy is owned there.
-        disable +=
-            listOf(
-                "SyntheticAccessor",
-                "UnknownNullness",
-                "UnsafeDynamicallyLoadedCode",
-            )
     }
 
     compileOptions {
@@ -165,6 +147,10 @@ kotlin {
 }
 
 dependencies {
+    implementation(
+        files(openvinoJavaApiJar, openvinoGenAiJavaApiJar)
+            .builtBy("extractOpenVinoAndroidPrebuilds"),
+    )
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
@@ -176,14 +162,13 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
 }
 
-val downloadOpenVinoAndroidPrebuild by tasks.registering(Exec::class) {
+val downloadOpenVinoAndroidCommonPrebuild by tasks.registering(Exec::class) {
     group = "ai"
-    description = "Download the Android OpenVINO prebuild from the rolling GitHub prerelease."
+    description = "Download the Android OpenVINO common prebuild from the rolling GitHub prerelease."
 
-    onlyIf { !openvinoGenAiAndroidDir.isPresent }
     inputs.file(layout.projectDirectory.file("scripts/download_openvino_prebuild.py"))
-    outputs.file(openvinoAndroidPrebuildArchive)
-    outputs.file(openvinoAndroidPrebuildArchiveMetadata)
+    outputs.file(openvinoAndroidCommonArchive)
+    outputs.file(openvinoAndroidCommonArchiveMetadata)
     outputs.upToDateWhen { false }
 
     doFirst {
@@ -198,68 +183,66 @@ val downloadOpenVinoAndroidPrebuild by tasks.registering(Exec::class) {
         "--release-tag",
         openvinoAndroidPrebuildReleaseTag.get(),
         "--artifact-name",
-        openvinoAndroidPrebuildArtifactName.get(),
+        openvinoAndroidCommonArtifactName.get(),
         "--output",
-        openvinoAndroidPrebuildArchive.get().asFile.absolutePath,
+        openvinoAndroidCommonArchive.get().asFile.absolutePath,
     )
 }
 
-val extractOpenVinoAndroidPrebuild by tasks.registering(Copy::class) {
+val downloadOpenVinoAndroidRuntimePrebuild by tasks.registering(Exec::class) {
     group = "ai"
-    description = "Extract the Android OpenVINO prebuild for native linking and packaging."
+    description = "Download the Android OpenVINO runtime prebuild from the rolling GitHub prerelease."
 
-    onlyIf { !openvinoGenAiAndroidDir.isPresent }
-    dependsOn(downloadOpenVinoAndroidPrebuild)
-    from({ zipTree(openvinoAndroidPrebuildArchive.get().asFile) })
-    into(openvinoAndroidPrebuildExtractDir)
-    outputs.dir(openvinoAndroidPrebuildPackageDir)
+    inputs.file(layout.projectDirectory.file("scripts/download_openvino_prebuild.py"))
+    outputs.file(openvinoAndroidRuntimeArchive)
+    outputs.file(openvinoAndroidRuntimeArchiveMetadata)
+    outputs.upToDateWhen { false }
+
+    doFirst {
+        openvinoAndroidPrebuildDownloadDir.get().asFile.mkdirs()
+    }
+
+    commandLine(
+        "python3",
+        "scripts/download_openvino_prebuild.py",
+        "--repo",
+        openvinoAndroidPrebuildRepo.get(),
+        "--release-tag",
+        openvinoAndroidPrebuildReleaseTag.get(),
+        "--artifact-name",
+        openvinoAndroidRuntimeArtifactName.get(),
+        "--output",
+        openvinoAndroidRuntimeArchive.get().asFile.absolutePath,
+    )
 }
 
-val stageOpenVinoRuntimeAssets by tasks.registering(Exec::class) {
+val extractOpenVinoAndroidPrebuilds by tasks.registering(Copy::class) {
     group = "ai"
-    description = "Stage OpenVINO runtime metadata that must live next to extracted native libraries."
+    description = "Extract Android OpenVINO prebuilds for Java and native packaging."
 
-    dependsOn(extractOpenVinoAndroidPrebuild)
-    inputs.dir(resolvedOpenvinoGenAiAndroidDir)
-    inputs.file(genaiJavaApiProjectDir.resolve("tools/stage_android_runtime_assets.py"))
+    dependsOn(downloadOpenVinoAndroidCommonPrebuild)
+    dependsOn(downloadOpenVinoAndroidRuntimePrebuild)
+    from({ zipTree(openvinoAndroidCommonArchive.get().asFile) })
+    from({ zipTree(openvinoAndroidRuntimeArchive.get().asFile) })
+    into(openvinoAndroidPrebuildExtractDir)
+    outputs.dir(openvinoAndroidCommonPackageDir)
+    outputs.dir(openvinoAndroidRuntimePackageDir)
+}
+
+val stageOpenVinoRuntimeAssets by tasks.registering(Copy::class) {
+    group = "ai"
+    description = "Stage OpenVINO runtime metadata packaged in the Android runtime prebuild."
+
+    dependsOn(extractOpenVinoAndroidPrebuilds)
+    from({ openvinoAndroidRuntimeJniAbiDir.get().asFile }) {
+        exclude("*.so")
+    }
+    into(openvinoRuntimeAssetDir)
     outputs.dir(openvinoRuntimeAssetDir)
 
-    commandLine(
-        "python3",
-        genaiJavaApiProjectDir.resolve("tools/stage_android_runtime_assets.py").absolutePath,
-        "--package-dir",
-        resolvedOpenvinoGenAiAndroidDir.get(),
-        "--abi",
-        openvinoAndroidAbi,
-        "--package-name",
-        openvinoAndroidPrebuildPackageName.get(),
-        "--output",
-        openvinoRuntimeAssetDir.get().asFile.absolutePath,
-    )
-}
-
-tasks.register<Exec>("prepareOpenVinoLlmModel") {
-    group = "ai"
-    description = "Export the bundled on-device LLM to an OpenVINO GenAI model bundle."
-
-    inputs.property("modelId", onDeviceLlmModelId)
-    inputs.property("weightFormat", onDeviceLlmWeightFormat)
-    inputs.file(layout.projectDirectory.file("scripts/prepare_openvino_llm_model.py"))
-    outputs.dir(onDeviceLlmExportDir)
-
-    commandLine(
-        "python3",
-        "scripts/prepare_openvino_llm_model.py",
-        "--model-id",
-        onDeviceLlmModelId.get(),
-        "--weight-format",
-        onDeviceLlmWeightFormat.get(),
-        "--output",
-        onDeviceLlmExportDir.get().asFile.absolutePath,
-        "--venv",
-        onDeviceLlmPythonVenvDir.get().asFile.absolutePath,
-        "--install-deps",
-    )
+    doFirst {
+        openvinoRuntimeAssetDir.get().asFile.deleteRecursively()
+    }
 }
 
 val downloadOpenVinoLlmModelBundle by tasks.registering(Exec::class) {
@@ -303,7 +286,7 @@ val extractOpenVinoLlmModelBundle by tasks.registering(Copy::class) {
 
 tasks.register<Copy>("stageOpenVinoLlmAssets") {
     group = "ai"
-    description = "Copy the released OpenVINO LLM model into app assets for local packaging."
+    description = "Copy the released OpenVINO LLM model into app assets for packaging."
     dependsOn(extractOpenVinoLlmModelBundle)
     onlyIf {
         file(resolvedOnDeviceLlmAssetSourceDir.get()).canonicalFile != onDeviceLlmAssetDir.get().asFile.canonicalFile
@@ -318,18 +301,12 @@ tasks.register<Copy>("stageOpenVinoLlmAssets") {
     }
 }
 
-tasks.register<Zip>("packageOpenVinoLlmModelBundle") {
-    group = "ai"
-    description = "Package the prepared OpenVINO LLM model bundle with its manifest hashes."
-    dependsOn("prepareOpenVinoLlmModel")
-
-    archiveFileName.set("on-device-llm-openvino-${onDeviceLlmWeightFormat.get()}.zip")
-    destinationDirectory.set(onDeviceLlmBundleDir)
-    from(onDeviceLlmExportDir)
-}
-
 tasks.named("preBuild") {
-    dependsOn(extractOpenVinoAndroidPrebuild)
+    dependsOn(extractOpenVinoAndroidPrebuilds)
     dependsOn(stageOpenVinoRuntimeAssets)
     dependsOn("stageOpenVinoLlmAssets")
+}
+
+tasks.matching { it.name.startsWith("compile") }.configureEach {
+    dependsOn(extractOpenVinoAndroidPrebuilds)
 }

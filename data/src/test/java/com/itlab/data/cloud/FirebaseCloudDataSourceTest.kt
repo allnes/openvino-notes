@@ -44,7 +44,6 @@ class FirebaseCloudDataSourceTest {
     fun setUp() {
         MockKAnnotations.init(this)
 
-        // Мокаем корутинный await() для Tasks
         mockkStatic("kotlinx.coroutines.tasks.TasksKt")
 
         every { storage.reference } returns rootRef
@@ -69,7 +68,6 @@ class FirebaseCloudDataSourceTest {
             every { rootRef.child("users/$userId/notes") } returns childRef
             every { childRef.listAll() } returns taskList
 
-            // Имитируем await()
             coEvery { taskList.await() } returns listResult
             every { listResult.items } returns listOf(itemRef)
             every { itemRef.path } returns "notes/note1.json"
@@ -170,7 +168,13 @@ class FirebaseCloudDataSourceTest {
             every { childRef.putStream(any(), any()) } returns task
             coEvery { task.await() } returns mockk()
 
-            val result = dataSource.uploadMedia("key", file, mimeType)
+            val result =
+                dataSource.uploadMedia(
+                    "key",
+                    com.itlab.domain.cloud
+                        .DomainFile(file.absolutePath),
+                    mimeType,
+                )
 
             assertTrue(result is Result.Success)
             file.delete()
@@ -180,18 +184,22 @@ class FirebaseCloudDataSourceTest {
     @Test
     fun `downloadMedia success`() =
         runBlocking {
-            val file = mockk<File>()
+            val testFile = File("dummy/path/to/file")
             val task = mockk<FileDownloadTask>()
+
             every { rootRef.child(any()) } returns childRef
-            every { childRef.getFile(file) } returns task
+            every { childRef.getFile(any<File>()) } returns task
             coEvery { task.await() } returns mockk()
 
-            val result = dataSource.downloadMedia("key", file)
+            val result =
+                dataSource.downloadMedia(
+                    "key",
+                    com.itlab.domain.cloud
+                        .DomainFile(testFile.absolutePath),
+                )
 
             assertTrue(result is Result.Success)
         }
-
-    // ТЕСТЫ НА ОШИБКИ (ПОКРЫТИЕ safeCall)
 
     @Test
     fun `safeCall catches FirebaseException`() =
@@ -240,16 +248,13 @@ class FirebaseCloudDataSourceTest {
             val key = "media/photo.jpg"
             val task = mockk<Task<Void>>()
 
-            // Настраиваем цепочку: rootRef.child(key).delete()
             every { rootRef.child(key) } returns childRef
             every { childRef.delete() } returns task
 
-            // Имитируем успешное завершение await()
             coEvery { task.await() } returns mockk()
 
             val result = dataSource.deleteMedia(key)
 
-            // Проверяем результат
             assertTrue(result is Result.Success)
             verify { childRef.delete() }
         }
@@ -258,16 +263,13 @@ class FirebaseCloudDataSourceTest {
     fun `deleteMedia failure`() =
         runBlocking {
             val key = "media/photo.jpg"
-            // Используем реальное исключение вместо мока, чтобы safeCall его узнал
             val exception = RuntimeException("Firebase error")
 
             every { rootRef.child(key) } returns childRef
-            // Эмулируем, что сам вызов childRef.delete() приводит к ошибке
             every { childRef.delete() } throws exception
 
             val result = dataSource.deleteMedia(key)
 
-            // Проверяем, что safeCall поймал ошибку и вернул Result.Error
             assertTrue(result is Result.Error)
             assertEquals(exception, (result as Result.Error).exception)
         }

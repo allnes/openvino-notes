@@ -19,12 +19,13 @@ Out of scope for this backend:
 
 ## Runtime Packaging
 
-The Android app consumes two external release assets at build time:
+The Android app consumes external release assets at build time:
 
-- OpenVINO Android prebuild: `openvino-android-prebuilds-nightly`
+- OpenVINO Android common prebuild: `openvino-android-common-nightly.zip`
+- OpenVINO Android ABI runtime prebuild: `openvino-android-runtime-<abi>-nightly.zip`
 - OpenVINO LLM model bundle: `openvino-llm-models-nightly`
 
-Gradle downloads and extracts these assets during `:ai:preBuild` unless local override properties are provided:
+Gradle downloads and extracts these assets during `:ai:preBuild`:
 
 ```bash
 ./gradlew :app:assembleRelease
@@ -34,14 +35,16 @@ Useful overrides:
 
 ```bash
 ./gradlew :app:assembleRelease \
-  -PopenvinoGenAiAndroidDir=/path/to/openvino-android-package \
-  -PonDeviceLlmPreparedDir=/path/to/openvino-llm-model
+  -PopenvinoAndroidAbi=x86_64 \
+  -PonDeviceLlmPreparedDir=/path/to/extracted/openvino-llm-model
 ```
+
+The app build does not build OpenVINO, OpenVINO GenAI, the GenAI Java JNI bridge, or model IR files locally. Runtime and Java API binaries come from the OpenVINO Android prebuild release assets; the model comes from the LLM model bundle release asset.
 
 The release APK packages:
 
-- OpenVINO and OpenVINO GenAI native libraries under `lib/arm64-v8a`
-- the Java JNI bridge built from `genai-java-api`
+- OpenVINO, OpenVINO GenAI, and GenAI Java JNI native libraries under `lib/<abi>`
+- OpenVINO Java API and GenAI Java API jars from the common prebuild
 - runtime metadata under `assets/openvino-runtime`
 - model files under `assets/models/on-device-llm-openvino`
 
@@ -88,7 +91,7 @@ On-device model quality check:
   --stacktrace
 ```
 
-The connected test requires an `arm64-v8a` Android target because the OpenVINO prebuild is packaged for that ABI. The Gradle host can be macOS arm64, Linux x86_64, or another CI machine as long as it can build the APK and reach a compatible Android device over ADB. Do not run this APK on an x86_64 emulator unless matching x86_64 OpenVINO native libraries are provided.
+The default connected test packages the `arm64-v8a` OpenVINO runtime. Use `-PopenvinoAndroidAbi=x86_64` when validating on an x86_64 Android target. The Gradle host can be macOS arm64, Linux x86_64, or another CI machine as long as it can build the APK and reach a compatible Android device over ADB.
 
 The test validates complex Russian, English, German, and French notes and checks that warm generations stay within the configured performance envelope.
 
