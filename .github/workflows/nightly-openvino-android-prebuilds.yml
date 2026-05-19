@@ -235,6 +235,13 @@ jobs:
           ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: bash .github/scripts/release/materialize_release_signing.sh
 
+      - name: Materialize Google services from GitHub secrets
+        shell: bash
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          GOOGLE_SERVICES_JSON_REQUIRED: "true"
+        run: bash .github/scripts/release/materialize_google_services_json.sh
+
       - name: Set up toolchain
         uses: ./.github/actions/setup-android-gradle
         with:

@@ -3,8 +3,10 @@
 # Requires repository secrets (never commit keys):
 #   ANDROID_RELEASE_KEYSTORE_BASE64, ANDROID_RELEASE_STORE_PASSWORD,
 #   ANDROID_RELEASE_KEY_ALIAS, ANDROID_RELEASE_KEY_PASSWORD
+#   GOOGLE_SERVICES_JSON_BASE64
 # verify_release_signing.sh fails the job if any secret is missing.
 # materialize_release_signing.sh writes app/keystore.properties + app/ci-release-signing.jks.
+# materialize_google_services_json.sh replaces the checked-in mock google-services.json on trusted builds.
 
 name: Release
 
@@ -51,6 +53,14 @@ jobs:
           ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
           ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: bash .github/scripts/release/materialize_release_signing.sh
+
+      - name: Materialize Google services from GitHub secrets
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          GOOGLE_SERVICES_JSON_REQUIRED: "true"
+        run: bash .github/scripts/release/materialize_google_services_json.sh
 
       - name: Set up toolchain
         uses: ./.github/actions/setup-android-gradle
@@ -108,6 +118,14 @@ jobs:
           ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
           ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: bash .github/scripts/release/materialize_release_signing.sh
+
+      - name: Materialize Google services from GitHub secrets
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          GOOGLE_SERVICES_JSON_REQUIRED: "true"
+        run: bash .github/scripts/release/materialize_google_services_json.sh
 
       - name: Set up toolchain
         uses: ./.github/actions/setup-android-gradle
