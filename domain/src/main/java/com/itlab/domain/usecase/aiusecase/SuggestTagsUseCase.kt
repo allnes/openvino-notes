@@ -21,6 +21,26 @@ class SuggestTagsUseCase(
                 image.source.localPath ?: image.source.remoteUrl
             }
 
+    private fun mergeTags(
+        textTags: Set<String>,
+        imageTags: Set<String>,
+        maxTags: Int,
+    ): Set<String> {
+        val limit = maxTags.coerceAtLeast(0)
+        val merged = LinkedHashSet<String>(limit)
+        if (limit > 0) {
+            val imageReserve = if (textTags.isNotEmpty() && imageTags.isNotEmpty()) 1 else 0
+            textTags.take(limit - imageReserve).forEach(merged::add)
+            imageTags.forEach { tag ->
+                if (merged.size < limit) merged += tag
+            }
+            textTags.forEach { tag ->
+                if (merged.size < limit) merged += tag
+            }
+        }
+        return merged
+    }
+
     suspend operator fun invoke(
         noteId: String,
         maxInputTokens: Int = 384,
@@ -41,6 +61,6 @@ class SuggestTagsUseCase(
                 )
             val imageTags = ai.tagIMGs(imageUrls)
 
-            (textTags + imageTags).take(maxTags).toSet()
+            mergeTags(textTags, imageTags, maxTags)
         }
 }

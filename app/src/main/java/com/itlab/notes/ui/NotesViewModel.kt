@@ -380,7 +380,7 @@ class NotesViewModel(
                         suggestion = suggestion,
                         savedNote = savedNote,
                         useCases = useCases,
-                        ensureCurrentEditor = { uiState.requireCurrentEditorNote(savedNote.id) },
+                        currentEditorNote = { uiState.requireCurrentEditorNote(savedNote.id) },
                         ensureCurrentEditorSnapshot = { uiState.requireCurrentEditorSnapshot(savedNote) },
                     )
 

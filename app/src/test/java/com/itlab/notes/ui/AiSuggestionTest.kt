@@ -32,6 +32,19 @@ class AiSuggestionTest {
         assertTrue(error is CancellationException)
     }
 
+    @Test
+    fun requireCurrentEditorNote_returnsLiveEditorNote() {
+        val editedNote = note(content = "latest autosaved content")
+        val state =
+            NotesUiState(
+                screen = NotesUiScreen.NoteEditor(directory = directory, note = editedNote),
+            )
+
+        val result = state.requireCurrentEditorNote(editedNote.id)
+
+        assertTrue(result === editedNote)
+    }
+
     private companion object {
         val directory = DirectoryItemUi(id = "dir", name = "Work", noteCount = 1)
 

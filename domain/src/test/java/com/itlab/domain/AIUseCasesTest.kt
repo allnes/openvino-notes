@@ -193,6 +193,38 @@ class AIUseCasesTest {
         }
 
     @Test
+    fun suggestTags_keepsImageTagWhenTextTagsFillBudget() =
+        runBlocking {
+            val repo = FakeNotesRepo()
+            val ai =
+                FakeNoteAiService().apply {
+                    textTagsResult = setOf("text-1", "text-2", "text-3", "text-4")
+                    imageTagsResult = setOf("image-1", "image-2")
+                }
+            val useCase = SuggestTagsUseCase(ai, repo)
+
+            repo.createNote(
+                Note(
+                    id = "n-tags",
+                    title = "Tags",
+                    userId = testUserId,
+                    contentItems =
+                        listOf(
+                            ContentItem.Text(text = "Text with enough topics"),
+                            ContentItem.Image(
+                                source = DataSource(localPath = "/local/image.png"),
+                                mimeType = "image/png",
+                            ),
+                        ),
+                ),
+            )
+
+            val result = useCase("n-tags", maxTags = 4)
+
+            assertEquals(setOf("text-1", "text-2", "text-3", "image-1"), result.getOrThrow())
+        }
+
+    @Test
     fun releaseNoteAi_releasesAiService() {
         val ai = FakeNoteAiService()
         val useCase = ReleaseNoteAiUseCase(ai)
