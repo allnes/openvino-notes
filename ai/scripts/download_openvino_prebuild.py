@@ -9,6 +9,7 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -64,6 +65,12 @@ def find_release_asset(repo: str, release_tag: str, artifact_name: str, token: s
     raise SystemExit(
         f"Release asset '{artifact_name}' was not found in {repo}@{release_tag}. Available assets: {available}",
     )
+
+
+def direct_release_asset_url(repo: str, release_tag: str, artifact_name: str) -> str:
+    escaped_tag = urllib.parse.quote(release_tag, safe="")
+    escaped_artifact = urllib.parse.quote(artifact_name, safe="")
+    return f"https://github.com/{repo}/releases/download/{escaped_tag}/{escaped_artifact}"
 
 
 def resolve_asset_download_url(asset: dict[str, Any], token: str | None, timeout: int) -> str:
@@ -193,6 +200,28 @@ def write_asset_metadata(file: Path, asset: dict[str, Any]) -> None:
     )
 
 
+def write_direct_download_metadata(
+    file: Path,
+    repo: str,
+    release_tag: str,
+    artifact_name: str,
+) -> None:
+    metadata_path(file).write_text(
+        json.dumps(
+            {
+                "download": "direct-release-asset",
+                "name": artifact_name,
+                "release_tag": release_tag,
+                "repo": repo,
+                "size": file.stat().st_size if file.is_file() else None,
+            },
+            indent=2,
+            sort_keys=True,
+        ) + "\n",
+        encoding="utf-8",
+    )
+
+
 def existing_file_matches_asset(file: Path, asset: dict[str, Any]) -> bool:
     if not file.is_file() or file.stat().st_size <= 0:
         return False
@@ -202,6 +231,15 @@ def existing_file_matches_asset(file: Path, asset: dict[str, Any]) -> bool:
         return False
 
     return load_existing_metadata(file) == current_asset_metadata(asset)
+
+
+def download_direct_release_asset(args: argparse.Namespace) -> None:
+    download_url = direct_release_asset_url(args.repo, args.release_tag, args.artifact_name)
+    args.output.unlink(missing_ok=True)
+    metadata_path(args.output).unlink(missing_ok=True)
+    download_with_retries(download_url, args.output, None, args.timeout, args.retries)
+    write_direct_download_metadata(args.output, args.repo, args.release_tag, args.artifact_name)
+    print(f"Downloaded GitHub release asset directly: {args.output}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -218,7 +256,18 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     token = github_token()
-    asset = find_release_asset(args.repo, args.release_tag, args.artifact_name, token, args.timeout)
+    try:
+        asset = find_release_asset(args.repo, args.release_tag, args.artifact_name, token, args.timeout)
+    except urllib.error.HTTPError as exc:
+        if token or exc.code != 403:
+            raise
+        print(
+            "GitHub release API is rate-limited; falling back to the public release asset URL.",
+            file=sys.stderr,
+        )
+        download_direct_release_asset(args)
+        return
+
     if existing_file_matches_asset(args.output, asset):
         print(f"Reusing current GitHub release asset: {args.output}")
         return
