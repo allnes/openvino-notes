@@ -210,6 +210,12 @@ jobs:
           ANDROID_SYSTEM_IMAGE: ""
         run: ./.github/scripts/setup/install_android_sdk_packages_windows.ps1
 
+      - name: Materialize Google services placeholder
+        shell: bash
+        env:
+          GOOGLE_SERVICES_JSON_ALLOW_PLACEHOLDER: "true"
+        run: bash .github/scripts/release/materialize_google_services_json.sh
+
       - name: Debug build and unit tests
         shell: pwsh
         run: ./.github/scripts/quality/run_debug_build_and_unit_tests_windows.ps1

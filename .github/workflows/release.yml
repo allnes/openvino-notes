@@ -6,7 +6,7 @@
 #   GOOGLE_SERVICES_JSON_BASE64
 # verify_release_signing.sh fails the job if any secret is missing.
 # materialize_release_signing.sh writes app/keystore.properties + app/ci-release-signing.jks.
-# materialize_google_services_json.sh replaces the checked-in mock google-services.json on trusted builds.
+# materialize_google_services_json.sh writes ignored app/google-services.json from secrets on trusted builds.
 
 name: Release
 

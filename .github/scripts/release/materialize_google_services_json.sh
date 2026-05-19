@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
-# Writes the real Firebase Google services config for trusted CI release builds.
+# Writes the Firebase Google services config needed by Android Gradle builds.
 #
 # Configure this repository secret (Settings -> Secrets and variables -> Actions):
 #   GOOGLE_SERVICES_JSON_BASE64 - base64 of the real app/google-services.json
 #
-# Pull request builds intentionally keep the checked-in mock google-services.json.
+# Trusted release builds must set GOOGLE_SERVICES_JSON_REQUIRED=true.
+# Pull request/quality CI may set GOOGLE_SERVICES_JSON_ALLOW_PLACEHOLDER=true to
+# generate an ignored placeholder file in the workspace without storing it in git.
 
 set -euo pipefail
 
 ROOT="${GITHUB_WORKSPACE:-.}"
 OUTPUT_PATH="${ROOT}/app/google-services.json"
 REQUIRED="${GOOGLE_SERVICES_JSON_REQUIRED:-false}"
+ALLOW_PLACEHOLDER="${GOOGLE_SERVICES_JSON_ALLOW_PLACEHOLDER:-false}"
 
 if [[ -z "${GOOGLE_SERVICES_JSON_BASE64:-}" ]]; then
   if [[ "${REQUIRED}" == "true" ]]; then
@@ -20,7 +23,68 @@ if [[ -z "${GOOGLE_SERVICES_JSON_BASE64:-}" ]]; then
     exit 1
   fi
 
-  echo "Google services config secret is not configured; keeping checked-in template."
+  if [[ -f "${OUTPUT_PATH}" ]]; then
+    echo "Google services config: using existing ${OUTPUT_PATH}."
+    exit 0
+  fi
+
+  if [[ "${ALLOW_PLACEHOLDER}" != "true" ]]; then
+    echo "Google services config is not configured."
+    echo "Provide app/google-services.json locally or set GOOGLE_SERVICES_JSON_BASE64."
+    exit 1
+  fi
+
+  mkdir -p "$(dirname "${OUTPUT_PATH}")"
+  cat > "${OUTPUT_PATH}" <<'JSON'
+{
+  "project_info": {
+    "project_number": "000000000000",
+    "project_id": "firebase-project-id-placeholder",
+    "storage_bucket": "firebase-project-id-placeholder.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "android_client_info": {
+          "package_name": "com.itlab.notes"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "android-oauth-client-id-placeholder.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.itlab.notes",
+            "certificate_hash": "0000000000000000000000000000000000000000"
+          }
+        },
+        {
+          "client_id": "web-oauth-client-id-placeholder.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "firebase-api-key-placeholder"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "web-oauth-client-id-placeholder.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
+JSON
+  echo "Google services config: wrote CI placeholder to ${OUTPUT_PATH}."
   exit 0
 fi
 
