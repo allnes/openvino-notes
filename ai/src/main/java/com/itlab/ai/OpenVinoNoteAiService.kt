@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 class OpenVinoNoteAiService(
     private val engine: OpenVinoEngine,
     private val processor: ResultProcessor,
+    private val imageTaggingBackend: ImageTaggingBackend = UnavailableImageTaggingBackend(),
 ) : NoteAiService {
     override suspend fun warmUp() {
         withContext(Dispatchers.Default) {
@@ -17,6 +18,7 @@ class OpenVinoNoteAiService(
 
     override fun release() {
         engine.release()
+        imageTaggingBackend.release()
     }
 
     override suspend fun summarize(
@@ -95,10 +97,7 @@ class OpenVinoNoteAiService(
             processor.normalizeRewrite(llmResult, sourceText = text)
         }
 
-    override suspend fun tagIMGs(img: List<String>): Set<String> {
-        // This is a text LLM path. Image tagging stays in a separate AI direction.
-        return emptySet()
-    }
+    override suspend fun tagIMGs(img: List<String>): Set<String> = imageTaggingBackend.tagImages(img)
 
     private fun String.retryContext(): String = trim().take(MAX_RETRY_CONTEXT_CHARS)
 

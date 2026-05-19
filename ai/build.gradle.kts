@@ -90,6 +90,29 @@ val resolvedOnDeviceLlmAssetSourceDir =
 val onDeviceLlmAssetRootDir = layout.buildDirectory.dir("generated/openvinoLlmAssets")
 val onDeviceLlmAssetDir = onDeviceLlmAssetRootDir.map { it.dir("models/on-device-llm-openvino") }
 
+val onDeviceVisionModelName = providers.gradleProperty("onDeviceVisionModelName").orElse("yolo26n")
+val onDeviceVisionBundleRepo =
+    providers.gradleProperty("onDeviceVisionBundleRepo").orElse(openvinoAndroidPrebuildRepo)
+val onDeviceVisionBundleReleaseTag =
+    providers.gradleProperty("onDeviceVisionBundleReleaseTag").orElse("openvino-vision-models-nightly")
+val onDeviceVisionBundleArtifactName =
+    providers
+        .gradleProperty("onDeviceVisionBundleArtifactName")
+        .orElse(onDeviceVisionModelName.map { "on-device-vision-$it-openvino.zip" })
+val onDeviceVisionBundleDownloadDir =
+    layout.buildDirectory.dir("vision/model-bundle/download/${onDeviceVisionBundleReleaseTag.get()}")
+val onDeviceVisionBundleExtractDir =
+    layout.buildDirectory.dir("vision/model-bundle/extracted/${onDeviceVisionBundleReleaseTag.get()}")
+val onDeviceVisionBundleArchive =
+    onDeviceVisionBundleDownloadDir.map { it.file(onDeviceVisionBundleArtifactName.get()) }
+val onDeviceVisionBundleArchiveMetadata =
+    onDeviceVisionBundleDownloadDir.map { it.file("${onDeviceVisionBundleArtifactName.get()}.metadata.json") }
+val onDeviceVisionPreparedDir = providers.gradleProperty("onDeviceVisionPreparedDir")
+val resolvedOnDeviceVisionAssetSourceDir =
+    onDeviceVisionPreparedDir.orElse(onDeviceVisionBundleExtractDir.map { it.asFile.absolutePath })
+val onDeviceVisionAssetRootDir = layout.buildDirectory.dir("generated/openvinoVisionAssets")
+val onDeviceVisionAssetDir = onDeviceVisionAssetRootDir.map { it.dir("models/on-device-vision-openvino") }
+
 android {
     namespace = "com.itlab.ai"
     compileSdk {
@@ -113,6 +136,7 @@ android {
             jniLibs.directories.add(openvinoAndroidRuntimeJniRootDir.get().asFile.absolutePath)
             assets.directories.add(openvinoRuntimeAssetRootDir.get().asFile.absolutePath)
             assets.directories.add(onDeviceLlmAssetRootDir.get().asFile.absolutePath)
+            assets.directories.add(onDeviceVisionAssetRootDir.get().asFile.absolutePath)
         }
     }
 
@@ -305,10 +329,68 @@ tasks.register<Copy>("stageOpenVinoLlmAssets") {
     }
 }
 
+val downloadOpenVinoVisionModelBundle by tasks.registering(Exec::class) {
+    group = "ai"
+    description = "Download the on-device OpenVINO vision model bundle from the rolling GitHub prerelease."
+
+    onlyIf { !onDeviceVisionPreparedDir.isPresent }
+    inputs.file(layout.projectDirectory.file("scripts/download_openvino_prebuild.py"))
+    outputs.file(onDeviceVisionBundleArchive)
+    outputs.file(onDeviceVisionBundleArchiveMetadata)
+    outputs.upToDateWhen { false }
+
+    doFirst {
+        onDeviceVisionBundleDownloadDir.get().asFile.mkdirs()
+    }
+
+    commandLine(
+        "python3",
+        "scripts/download_openvino_prebuild.py",
+        "--repo",
+        onDeviceVisionBundleRepo.get(),
+        "--release-tag",
+        onDeviceVisionBundleReleaseTag.get(),
+        "--artifact-name",
+        onDeviceVisionBundleArtifactName.get(),
+        "--output",
+        onDeviceVisionBundleArchive.get().asFile.absolutePath,
+    )
+}
+
+val extractOpenVinoVisionModelBundle by tasks.registering(Copy::class) {
+    group = "ai"
+    description = "Extract the released on-device OpenVINO vision model bundle for app assets."
+
+    onlyIf { !onDeviceVisionPreparedDir.isPresent }
+    dependsOn(downloadOpenVinoVisionModelBundle)
+    from({ zipTree(onDeviceVisionBundleArchive.get().asFile) })
+    into(onDeviceVisionBundleExtractDir)
+    outputs.dir(onDeviceVisionBundleExtractDir)
+}
+
+tasks.register<Copy>("stageOpenVinoVisionAssets") {
+    group = "ai"
+    description = "Copy the released OpenVINO vision model into app assets for packaging."
+    dependsOn(extractOpenVinoVisionModelBundle)
+    onlyIf {
+        file(resolvedOnDeviceVisionAssetSourceDir.get()).canonicalFile !=
+            onDeviceVisionAssetDir.get().asFile.canonicalFile
+    }
+    outputs.dir(onDeviceVisionAssetDir)
+
+    from({ file(resolvedOnDeviceVisionAssetSourceDir.get()) })
+    into(onDeviceVisionAssetDir)
+
+    doFirst {
+        onDeviceVisionAssetDir.get().asFile.deleteRecursively()
+    }
+}
+
 tasks.named("preBuild") {
     dependsOn(extractOpenVinoAndroidPrebuilds)
     dependsOn(stageOpenVinoRuntimeAssets)
     dependsOn("stageOpenVinoLlmAssets")
+    dependsOn("stageOpenVinoVisionAssets")
 }
 
 tasks.matching { it.name.startsWith("compile") }.configureEach {

@@ -359,18 +359,61 @@ class OpenVinoAiLayerTest {
         }
 
     @Test
-    fun tagIMGs_returnsEmptySetBecauseVisionIsSeparateFromTextLlm() =
+    fun tagIMGs_delegatesToImageTaggingBackend() =
         runBlocking {
+            val imageBackend = RecordingImageTaggingBackend(setOf("bus", "person"))
             val service =
                 OpenVinoNoteAiService(
                     OpenVinoEngine(llmBackend = RecordingLlmBackend("unused")),
                     ResultProcessor(),
+                    imageTaggingBackend = imageBackend,
                 )
 
-            val result = service.tagIMGs(listOf("Cat, Pet", "pet, animal", "  CAT"))
+            val result = service.tagIMGs(listOf("/tmp/bus.jpg"))
 
-            assertEquals(emptySet<String>(), result)
+            assertEquals(setOf("bus", "person"), result)
+            assertEquals(listOf("/tmp/bus.jpg"), imageBackend.lastSources)
         }
+
+    @Test
+    fun yoloOutputParser_returnsTagsWithClassAwareNmsAndConfidenceFilter() {
+        val config =
+            OnDeviceVisionConfig
+                .defaultAndroid()
+                .copy(confidenceThreshold = 0.35f, iouThreshold = 0.45f, maxDetections = 4)
+        val parser = YoloOutputParser(config)
+        val outputData =
+            floatArrayOf(
+                0f,
+                0f,
+                10f,
+                10f,
+                0.90f,
+                0f,
+                1f,
+                1f,
+                11f,
+                11f,
+                0.80f,
+                1f,
+                20f,
+                20f,
+                30f,
+                30f,
+                0.34f,
+                2f,
+                40f,
+                40f,
+                50f,
+                50f,
+                0.70f,
+                3f,
+            )
+
+        val result = parser.parseTags(outputData, listOf("bus", "person", "car", "traffic light"))
+
+        assertEquals(setOf("bus", "person", "traffic light"), result)
+    }
 
     @Test
     fun noteLlmPromptBuilder_trimsLargeInput() {
@@ -602,6 +645,18 @@ class OpenVinoAiLayerTest {
 
         override fun release() {
             releaseCalled = true
+        }
+    }
+
+    private class RecordingImageTaggingBackend(
+        private val tags: Set<String>,
+    ) : ImageTaggingBackend {
+        var lastSources: List<String> = emptyList()
+            private set
+
+        override suspend fun tagImages(imageSources: List<String>): Set<String> {
+            lastSources = imageSources
+            return tags
         }
     }
 }
