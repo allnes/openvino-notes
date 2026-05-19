@@ -4,8 +4,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.intel.openvino.CompiledModel
@@ -105,7 +105,7 @@ class OpenVinoYoloImageTagger(
 
     private fun loadBitmap(source: String): Bitmap? =
         if (source.startsWith(CONTENT_URI_PREFIX)) {
-            appContext.contentResolver.openInputStream(Uri.parse(source)).use { input ->
+            appContext.contentResolver.openInputStream(source.toUri()).use { input ->
                 BitmapFactory.decodeStream(input)
             }
         } else {
