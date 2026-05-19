@@ -323,6 +323,9 @@ class NotesViewModel(
         note: NoteItemUi,
         directory: DirectoryItemUi,
     ): Boolean {
+        if (note.title.trim().isEmpty()) return false
+        val existing = useCases.getNoteUseCase(note.id)
+        if (existing == null && !canCreateNotesInDirectory(directory.id)) return false
         val savedNote =
             upsertEditorNote(note, directory)
                 .getOrElse { return false }

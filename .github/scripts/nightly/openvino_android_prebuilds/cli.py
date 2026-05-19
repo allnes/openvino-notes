@@ -5,6 +5,11 @@ from typing import Annotated
 
 import typer
 
+from .apk_release import (
+    package_release_apk_from_env,
+    plan_apk_release_matrix_from_env,
+    publish_apk_release_from_env,
+)
 from .build_steps import (
     build_genai_java_api,
     build_onetbb,
@@ -36,6 +41,9 @@ class Stage(str, Enum):
     package_prebuild = "package-prebuild"
     ccache_stats = "ccache-stats"
     publish_release = "publish-release"
+    plan_apk_release_matrix = "plan-apk-release-matrix"
+    package_release_apk = "package-release-apk"
+    publish_apk_release = "publish-apk-release"
 
 
 STAGES = {
@@ -65,6 +73,15 @@ def run_all(config: BuildConfig) -> None:
 def run_stage(stage: Annotated[Stage, typer.Argument(help="Build stage to execute.")] = Stage.all) -> None:
     if stage == Stage.publish_release:
         publish_release_from_env()
+        return
+    if stage == Stage.plan_apk_release_matrix:
+        plan_apk_release_matrix_from_env()
+        return
+    if stage == Stage.package_release_apk:
+        package_release_apk_from_env()
+        return
+    if stage == Stage.publish_apk_release:
+        publish_apk_release_from_env()
         return
 
     config = BuildConfig.from_env()

@@ -17,3 +17,4 @@ local.properties
 keystore.properties
 *.jks
 **/ci-release-signing.jks
+app/google-services.json

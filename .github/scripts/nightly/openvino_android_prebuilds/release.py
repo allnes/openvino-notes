@@ -157,6 +157,8 @@ def _release_notes(prefix: str, release_manifest: dict[str, object]) -> str:
 
 
 def _content_type(path: Path) -> str:
+    if path.suffix == ".apk":
+        return "application/vnd.android.package-archive"
     if path.suffix == ".json":
         return "application/json"
     if path.suffix == ".zip":

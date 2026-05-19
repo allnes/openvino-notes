@@ -187,6 +187,17 @@ jobs:
         with:
           packages: platform-tools
 
+      - name: Restore Android SDK package cache
+        uses: actions/cache@v4.2.4
+        with:
+          path: |
+            ${{ env.ANDROID_HOME }}/platforms/android-${{ env.ANDROID_API_LEVEL }}
+            ${{ env.ANDROID_HOME }}/build-tools/${{ env.ANDROID_BUILD_TOOLS }}
+          key: android-sdk-packages-${{ runner.os }}-${{ env.ANDROID_API_LEVEL }}-${{ env.ANDROID_BUILD_TOOLS }}
+          restore-keys: |
+            android-sdk-packages-${{ runner.os }}-${{ env.ANDROID_API_LEVEL }}-
+            android-sdk-packages-${{ runner.os }}-
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6.1.0
 
@@ -198,6 +209,12 @@ jobs:
           INSTALL_SYSTEM_IMAGE: "false"
           ANDROID_SYSTEM_IMAGE: ""
         run: ./.github/scripts/setup/install_android_sdk_packages_windows.ps1
+
+      - name: Materialize Google services placeholder
+        shell: bash
+        env:
+          GOOGLE_SERVICES_JSON_ALLOW_PLACEHOLDER: "true"
+        run: bash .github/scripts/release/materialize_google_services_json.sh
 
       - name: Debug build and unit tests
         shell: pwsh

@@ -14,4 +14,4 @@ internal fun isVirtualDirectory(directoryId: String): Boolean =
         directoryId == RECENT_DIRECTORY_ID ||
         directoryId == FAVORITES_DIRECTORY_ID
 
-internal fun canCreateNotesInDirectory(directoryId: String): Boolean = directoryId != ALL_DIRECTORY_ID
+internal fun canCreateNotesInDirectory(directoryId: String): Boolean = !isVirtualDirectory(directoryId)

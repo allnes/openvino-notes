@@ -202,7 +202,6 @@ class AuthViewModel(
             shouldActivateSession = true
             runCatching {
                 firebaseAuth.signInWithEmailAndPassword(trimmedEmail, password).await()
-                clearLocalDataOnSignOut()
             }.onFailure { error ->
                 shouldActivateSession = false
                 _uiState.update {
@@ -258,7 +257,6 @@ class AuthViewModel(
             runCatching {
                 val credential = GoogleAuthProvider.getCredential(idToken, null)
                 firebaseAuth.signInWithCredential(credential).await()
-                clearLocalDataOnSignOut()
             }.onFailure { error ->
                 shouldActivateSession = false
                 _uiState.update {
