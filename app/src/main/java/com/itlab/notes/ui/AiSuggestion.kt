@@ -14,6 +14,7 @@ internal suspend fun generateAiSuggestion(
     savedNote: NoteItemUi,
     useCases: NotesUseCases,
     ensureCurrentEditor: () -> Unit,
+    ensureCurrentEditorSnapshot: () -> Unit,
 ): Result<NoteItemUi> =
     when (suggestion) {
         AiSuggestion.Summary ->
@@ -36,7 +37,7 @@ internal suspend fun generateAiSuggestion(
             useCases
                 .rewriteNoteUseCase(savedNote.id)
                 .mapCatching { rewrittenContent ->
-                    ensureCurrentEditor()
+                    ensureCurrentEditorSnapshot()
                     useCases.applyRewriteUseCase(savedNote.id, rewrittenContent).getOrThrow()
                     savedNote.copy(content = rewrittenContent)
                 }
@@ -48,6 +49,16 @@ internal fun NotesUiState.isCurrentEditorNote(noteId: String): Boolean =
 internal fun NotesUiState.requireCurrentEditorNote(noteId: String) {
     if (!isCurrentEditorNote(noteId)) {
         throw CancellationException("Editor changed before AI generation completed.")
+    }
+}
+
+internal fun NotesUiState.requireCurrentEditorSnapshot(note: NoteItemUi) {
+    val currentNote = (screen as? NotesUiScreen.NoteEditor)?.note
+    if (currentNote?.id != note.id) {
+        throw CancellationException("Editor changed before AI generation completed.")
+    }
+    if (currentNote != note) {
+        throw CancellationException("Editor content changed before AI rewrite completed.")
     }
 }
 

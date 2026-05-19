@@ -53,6 +53,20 @@ class OpenVinoAiLayerTest {
     }
 
     @Test
+    fun noteLanguageDetector_prefersGermanUmlautsBeforeFrenchAccents() {
+        val result = NoteLanguageDetector.detect("Frau Müller prüft OpenVINO für Leipzig.")
+
+        assertEquals(NoteLanguage.GERMAN, result)
+    }
+
+    @Test
+    fun noteLanguageDetector_keepsFrenchAccentDetection() {
+        val result = NoteLanguageDetector.detect("Claire prépare une revue à Lyon avant mercredi.")
+
+        assertEquals(NoteLanguage.FRENCH, result)
+    }
+
+    @Test
     fun normalizeTags_splitsByCommaAndNewLine() {
         val processor = ResultProcessor()
 

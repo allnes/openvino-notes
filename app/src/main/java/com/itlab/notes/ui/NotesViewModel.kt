@@ -381,6 +381,7 @@ class NotesViewModel(
                         savedNote = savedNote,
                         useCases = useCases,
                         ensureCurrentEditor = { uiState.requireCurrentEditorNote(savedNote.id) },
+                        ensureCurrentEditorSnapshot = { uiState.requireCurrentEditorSnapshot(savedNote) },
                     )
 
                 generated

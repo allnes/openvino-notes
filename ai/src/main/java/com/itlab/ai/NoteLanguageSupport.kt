@@ -230,8 +230,8 @@ internal object NoteLanguageDetector {
     fun detect(text: String): NoteLanguage =
         when {
             russianRegex.containsMatchIn(text) -> NoteLanguage.RUSSIAN
-            frenchRegex.containsMatchIn(text) -> NoteLanguage.FRENCH
             germanRegex.containsMatchIn(text) -> NoteLanguage.GERMAN
+            frenchRegex.containsMatchIn(text) -> NoteLanguage.FRENCH
             else -> NoteLanguage.ENGLISH
         }
 
