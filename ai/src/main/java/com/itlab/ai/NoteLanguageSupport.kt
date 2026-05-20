@@ -13,11 +13,14 @@ internal enum class NoteLanguage(
                 tagsCue = "Теги",
                 rewriteCue = "Переписанный текст",
                 summaryInstruction =
-                    "Суммируй заметку одним коротким русским предложением. Пиши только по-русски.",
+                    "Суммируй заметку одним коротким русским предложением. Пиши только по-русски. " +
+                        "Сохраняй естественные русские падежи и копируй готовые словосочетания целиком.",
                 tagsInstruction =
                     "Предложи короткие русские теги. Каждый тег: 1-2 полных слова, без предложений.",
                 rewriteInstruction =
-                    "Перепиши заметку яснее и аккуратнее. Пиши только по-русски.",
+                    "Перепиши заметку яснее и аккуратнее. Пиши только по-русски. " +
+                        "Сохраняй естественные русские падежи и не меняй удачные формулировки без необходимости. " +
+                        "Если словосочетание уже правильное, копируй его целиком.",
                 tagExample = "пример: склад, OpenVINO, риски, датчики",
             ),
         rules =
@@ -95,15 +98,15 @@ internal enum class NoteLanguage(
             NoteLanguagePrompts(
                 summaryCue = "Deutsche Zusammenfassung",
                 tagsCue = "Stichworte",
-                rewriteCue = "Ueberarbeitete Notiz",
+                rewriteCue = "Überarbeitete Notiz",
                 summaryInstruction =
-                    "Fasse die Notiz in genau einem kurzen deutschen Satz zusammen. Schreibe ausschliesslich Deutsch.",
+                    "Fasse die Notiz in genau einem kurzen deutschen Satz zusammen. Schreibe ausschließlich Deutsch.",
                 tagsInstruction =
-                    "Erstelle kurze deutsche Stichworte. Jedes Stichwort hat 1-2 vollstaendige Woerter, keinen Satz.",
+                    "Erstelle kurze deutsche Stichworte. Jedes Stichwort hat 1-2 vollständige Wörter, keinen Satz.",
                 rewriteInstruction =
                     "Formuliere die Notiz klarer und lesbarer auf Deutsch. " +
-                        "Uebersetze sie nicht in eine andere Sprache.",
-                tagExample = "Beispiel: Qualitaetspruefung, Leipzig, OpenVINO, Risiken",
+                        "Übersetze sie nicht in eine andere Sprache.",
+                tagExample = "Beispiel: Qualitätsprüfung, Leipzig, OpenVINO, Risiken",
             ),
         rules =
             NoteLanguageRules(

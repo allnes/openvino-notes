@@ -8,7 +8,7 @@ interface NoteAiService {
     suspend fun summarize(
         text: String,
         maxInputTokens: Int = 512,
-        maxNewTokens: Int = 48,
+        maxNewTokens: Int = 128,
     ): String
 
     suspend fun suggestTags(
@@ -21,7 +21,7 @@ interface NoteAiService {
         text: String,
         style: RewriteStyle,
         maxInputTokens: Int = 768,
-        maxNewTokens: Int = 128,
+        maxNewTokens: Int = 192,
     ): String
 
     suspend fun tagIMGs(img: List<String>): Set<String>

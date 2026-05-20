@@ -343,7 +343,7 @@ class AIUseCasesTest {
 
             assertEquals("AI rewrite", result.getOrThrow())
             assertEquals("Long editor note", ai.rewriteInput)
-            assertEquals(128, ai.rewriteMaxNewTokens)
+            assertEquals(192, ai.rewriteMaxNewTokens)
         }
 
     @Test

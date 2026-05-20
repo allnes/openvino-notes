@@ -19,7 +19,7 @@ class SuggestSummaryUseCase(
     suspend operator fun invoke(
         noteId: String,
         maxInputTokens: Int = 512,
-        maxNewTokens: Int = 48,
+        maxNewTokens: Int = 128,
     ): Result<String> =
         runCatching {
             val userId = getUserIdUseCase()

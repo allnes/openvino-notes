@@ -188,6 +188,160 @@ class OpenVinoAiLayerTest {
     }
 
     @Test
+    fun normalizeSummary_withSourceFallsBackWhenAnswerIsUnfinished() {
+        val processor = ResultProcessor()
+
+        val result =
+            processor.normalizeSummary(
+                raw = "Марина проверяет пилотный стенд и записывает три риска: задержка поставки, шумные",
+                sourceText =
+                    "Марина проверяет OpenVINO-стенд в Казани во вторник в 09:30. " +
+                        "Иван записывает три риска для команды.",
+            )
+
+        assertEquals("Марина проверяет OpenVINO-стенд в Казани во вторник в 09:30.", result)
+    }
+
+    @Test
+    fun normalizeSummary_withSourceFallsBackWhenAnswerEndsAtAbbreviation() {
+        val processor = ResultProcessor()
+
+        val result =
+            processor.normalizeSummary(
+                raw = "Maya must send Dr.",
+                sourceText = "Maya sends Dr. Chen the risk note before Friday 14:00.",
+            )
+
+        assertEquals("Maya sends Dr. Chen the risk note before Friday 14:00.", result)
+    }
+
+    @Test
+    fun normalizeSummary_withSourceRepairsLanguageSpecificArtifacts() {
+        val processor = ResultProcessor()
+
+        val german =
+            processor.normalizeSummary(
+                raw = "Fur die Qualitaetspruefung in Leipzig ist Frau Müller verantwortlich.",
+                sourceText = "Frau Müller koordiniert die Qualitätsprüfung in Leipzig.",
+            )
+
+        assertEquals("Für die Qualitätsprüfung in Leipzig ist Frau Müller verantwortlich.", german)
+    }
+
+    @Test
+    fun normalizeSummary_withRussianSourcePrefersExtractiveGrounding() {
+        val processor = ResultProcessor()
+
+        val result =
+            processor.normalizeSummary(
+                raw = "Марина проверяет пилотного стенда в Казани в 09:30.",
+                sourceText = "Марина ведет запуск пилотного стенда в Казани в 09:30.",
+            )
+
+        assertEquals("Марина ведет запуск пилотного стенда в Казани в 09:30.", result)
+    }
+
+    @Test
+    fun normalizeRewrite_withSourceRepairsLanguageSpecificArtifacts() {
+        val processor = ResultProcessor()
+
+        val result =
+            processor.normalizeRewrite(
+                raw = "Марина проверяет пилотного стенда в Казани в 09:30.",
+                sourceText = "Марина ведет запуск пилотного стенда в Казани в 09:30.",
+            )
+
+        assertEquals("Марина проверяет пилотный стенд в Казани в 09:30.", result)
+    }
+
+    @Test
+    fun normalizeSummary_withSourceCompactsMultiSentenceModelAnswer() {
+        val processor = ResultProcessor()
+
+        val result =
+            processor.normalizeSummary(
+                raw =
+                    "Frau Müller koordiniert eine Qualitätsprüfung in Leipzig. " +
+                        "Jonas und Aylin testen OpenVINO am Donnerstag um 08:15. " +
+                        "Wenn der Lärmpegel steigt, wird der Versuch in Halle 2 verschoben.",
+                sourceText =
+                    "Frau Müller koordiniert eine Qualitätsprüfung in Leipzig. " +
+                        "Am Donnerstag um 08:15 testen Jonas und Aylin OpenVINO in Halle 2. " +
+                        "Danach dokumentiert das Team offene Risiken.",
+            )
+
+        assertEquals(
+            "Frau Müller koordiniert eine Qualitätsprüfung in Leipzig. " +
+                "Jonas und Aylin testen OpenVINO am Donnerstag um 08:15.",
+            result,
+        )
+    }
+
+    @Test
+    fun normalizeSummary_withSourceFallsBackWhenAnswerAddsGenericClaim() {
+        val processor = ResultProcessor()
+
+        val result =
+            processor.normalizeSummary(
+                raw =
+                    "Frau Müller koordiniert eine Qualitätsprüfung in Leipzig, " +
+                        "und die Risiken werden in der Regel von der Teamliste abgeleitet.",
+                sourceText =
+                    "Frau Müller koordiniert eine Qualitätsprüfung in Leipzig. " +
+                        "Jonas testet OpenVINO am Donnerstag um 08:15.",
+            )
+
+        assertEquals("Jonas testet OpenVINO am Donnerstag um 08:15.", result)
+    }
+
+    @Test
+    fun normalizeSummary_withSourceSelectsUsefulFallbackFactsAcrossLanguages() {
+        val processor = ResultProcessor()
+        val cases =
+            listOf(
+                SummaryFallbackCase(
+                    raw = "the model and risk",
+                    source = "Заметки к встрече. Марина проверяет OpenVINO-стенд в Казани во вторник в 09:30.",
+                    genericFirstSentence = "Заметки к встрече.",
+                    expectedFacts = listOf("Марина", "09:30"),
+                ),
+                SummaryFallbackCase(
+                    raw = "Марина проверяет стенд.",
+                    source =
+                        "Meeting notes. Maya must confirm the OpenVINO build before Friday 14:00 " +
+                            "if Lab B is closed.",
+                    genericFirstSentence = "Meeting notes.",
+                    expectedFacts = listOf("Maya", "14:00"),
+                ),
+                SummaryFallbackCase(
+                    raw = "Frau Müller coordonne une qualité en Leipzig.",
+                    source = "Notiz. Frau Müller testet OpenVINO in Leipzig am Donnerstag um 08:15.",
+                    genericFirstSentence = "Notiz.",
+                    expectedFacts = listOf("Müller", "08:15"),
+                ),
+                SummaryFallbackCase(
+                    raw = "Frau Müller muss prüfen.",
+                    source = "Note. Claire vérifie le modèle OpenVINO à Lyon avant mercredi 16:45.",
+                    genericFirstSentence = "Note.",
+                    expectedFacts = listOf("Claire", "16:45"),
+                ),
+            )
+
+        cases.forEach { testCase ->
+            val result =
+                processor.normalizeSummary(
+                    raw = testCase.raw,
+                    sourceText = testCase.source,
+                )
+
+            assertFalse(result, result.equals(testCase.genericFirstSentence, ignoreCase = true))
+            testCase.expectedFacts.forEach { fact ->
+                assertTrue("$result does not contain $fact", result.contains(fact, ignoreCase = true))
+            }
+        }
+    }
+
+    @Test
     fun normalizeRewrite_withSourceFallsBackWhenGermanAnswerDriftsToFrench() {
         val processor = ResultProcessor()
         val source = "Frau Müller koordiniert eine Qualitätsprüfung in Leipzig."
@@ -199,6 +353,33 @@ class OpenVinoAiLayerTest {
             )
 
         assertEquals(source, result)
+    }
+
+    @Test
+    fun normalizeRewrite_withSourceFallsBackWhenAnswerIsUnfinished() {
+        val processor = ResultProcessor()
+        val source = "Maya confirms the OpenVINO build before Friday 14:00."
+
+        val result =
+            processor.normalizeRewrite(
+                raw = "Maya confirms the OpenVINO build before Friday 14",
+                sourceText = source,
+            )
+
+        assertEquals(source, result)
+    }
+
+    @Test
+    fun normalizeRewrite_withSourceFallbackCleansPunctuationSpacing() {
+        val processor = ResultProcessor()
+
+        val result =
+            processor.normalizeRewrite(
+                raw = "Марина проверяет стенд.",
+                sourceText = "Maya   confirms OpenVINO build ;  Friday 14:00 .",
+            )
+
+        assertEquals("Maya confirms OpenVINO build; Friday 14:00.", result)
     }
 
     @Test
@@ -232,7 +413,7 @@ class OpenVinoAiLayerTest {
     @Test
     fun summarize_returnsTrimmedSummary() =
         runBlocking {
-            val backend = RecordingLlmBackend("  Summary text  ")
+            val backend = RecordingLlmBackend("  Summary text.  ")
             val service =
                 OpenVinoNoteAiService(
                     OpenVinoEngine(llmBackend = backend),
@@ -246,7 +427,7 @@ class OpenVinoAiLayerTest {
                     maxNewTokens = OnDeviceLlmConfig.defaultAndroid().summaryMaxNewTokens,
                 )
 
-            assertEquals("Summary text", result)
+            assertEquals("Summary text.", result)
             assertEquals(OnDeviceLlmConfig.defaultAndroid().summaryMaxNewTokens, backend.lastMaxNewTokens)
             assertEquals(LlmGenerationIntent.Summary, backend.lastIntent)
             assertTrue(backend.lastPrompt.orEmpty().contains("Summarize the note"))
@@ -336,7 +517,7 @@ class OpenVinoAiLayerTest {
     @Test
     fun rewrite_returnsTrimmedRewrite() =
         runBlocking {
-            val backend = RecordingLlmBackend("  Better note  ")
+            val backend = RecordingLlmBackend("  Better note.  ")
             val service =
                 OpenVinoNoteAiService(
                     OpenVinoEngine(llmBackend = backend),
@@ -351,7 +532,7 @@ class OpenVinoAiLayerTest {
                     maxNewTokens = OnDeviceLlmConfig.defaultAndroid().rewriteMaxNewTokens,
                 )
 
-            assertEquals("Better note", result)
+            assertEquals("Better note.", result)
             assertEquals(OnDeviceLlmConfig.defaultAndroid().rewriteMaxNewTokens, backend.lastMaxNewTokens)
             assertEquals(LlmGenerationIntent.Rewrite, backend.lastIntent)
             assertTrue(backend.lastPrompt.orEmpty().contains("Rewrite the note"))
@@ -749,4 +930,11 @@ class OpenVinoAiLayerTest {
             return tags
         }
     }
+
+    private data class SummaryFallbackCase(
+        val raw: String,
+        val source: String,
+        val genericFirstSentence: String,
+        val expectedFacts: List<String>,
+    )
 }

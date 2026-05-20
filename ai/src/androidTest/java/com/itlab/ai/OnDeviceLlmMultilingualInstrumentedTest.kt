@@ -78,6 +78,9 @@ class OnDeviceLlmMultilingualInstrumentedTest {
                             "tagsCount=${tagsResult.value.size} " +
                             "rewriteChars=${rewriteResult.value.length}",
                     )
+                    logInfo("${testCase.language} summary=${summaryResult.value}")
+                    logInfo("${testCase.language} tags=${tagsResult.value.joinToString()}")
+                    logInfo("${testCase.language} rewrite=${rewriteResult.value}")
 
                     assertUsefulSummary(testCase, summaryResult.value)
                     assertUsefulTags(testCase, tagsResult.value)
@@ -130,9 +133,18 @@ class OnDeviceLlmMultilingualInstrumentedTest {
     ) {
         assertTrue("${testCase.language} summary is blank", summary.isNotBlank())
         assertTrue("${testCase.language} summary is too long: $summary", summary.length <= 260)
+        assertTrue(
+            "${testCase.language} summary is not compressed enough: $summary",
+            summary.length <= testCase.note.length * 2 / 3,
+        )
+        assertCompleteAnswer(testCase.language, "summary", summary)
+        assertFalse(
+            "${testCase.language} summary copied the source note: $summary",
+            normalizedForComparison(summary) == normalizedForComparison(testCase.note),
+        )
         assertNoAssistantArtifacts(testCase.language, "summary", summary)
         assertLanguageSignal(testCase, "summary", summary)
-        assertContainsAny(testCase, "summary", summary, testCase.summaryFacts)
+        assertContainsAtLeast(testCase, "summary", summary, testCase.summaryFacts, minimumMatches = 2)
     }
 
     private fun assertUsefulTags(
@@ -165,8 +177,9 @@ class OnDeviceLlmMultilingualInstrumentedTest {
             rewrite.length <= testCase.note.length + 220,
         )
         assertNoAssistantArtifacts(testCase.language, "rewrite", rewrite)
+        assertCompleteAnswer(testCase.language, "rewrite", rewrite)
         assertLanguageSignal(testCase, "rewrite", rewrite)
-        assertContainsAny(testCase, "rewrite", rewrite, testCase.rewriteFacts)
+        assertContainsAtLeast(testCase, "rewrite", rewrite, testCase.rewriteFacts, minimumMatches = 2)
     }
 
     private fun assertNoAssistantArtifacts(
@@ -176,6 +189,17 @@ class OnDeviceLlmMultilingualInstrumentedTest {
     ) {
         assertFalse("$language $field contains chat template artifact: $value", value.contains("<|"))
         assertFalse("$language $field contains markdown heading: $value", value.contains("**"))
+    }
+
+    private fun assertCompleteAnswer(
+        language: String,
+        field: String,
+        value: String,
+    ) {
+        assertTrue(
+            "$language $field is unfinished: $value",
+            value.trim().lastOrNull() in terminalPunctuation,
+        )
     }
 
     private fun assertLanguageSignal(
@@ -189,17 +213,25 @@ class OnDeviceLlmMultilingualInstrumentedTest {
         )
     }
 
-    private fun assertContainsAny(
+    private fun assertContainsAtLeast(
         testCase: MultilingualCase,
         field: String,
         value: String,
         expectedFacts: List<String>,
+        minimumMatches: Int,
     ) {
+        val matchedFacts = expectedFacts.filter { fact -> value.contains(fact, ignoreCase = true) }
         assertTrue(
-            "${testCase.language} $field lost key facts. Expected one of $expectedFacts in: $value",
-            expectedFacts.any { fact -> value.contains(fact, ignoreCase = true) },
+            "${testCase.language} $field lost key facts. Expected at least $minimumMatches of $expectedFacts in: $value",
+            matchedFacts.size >= minimumMatches,
         )
     }
+
+    private fun normalizedForComparison(value: String): String =
+        value
+            .lowercase()
+            .replace(Regex("""\s+"""), " ")
+            .trim()
 
     private fun assertWarmGenerationPerformance(timings: List<GenerationTiming>) {
         val slowest = timings.maxBy { it.elapsedMs }
@@ -250,6 +282,7 @@ class OnDeviceLlmMultilingualInstrumentedTest {
         private const val TAG = "OnDeviceLlmTest"
         private const val MAX_AVERAGE_WARM_GENERATION_MS = 18_000L
         private const val MAX_SINGLE_WARM_GENERATION_MS = 45_000L
+        private val terminalPunctuation = setOf('.', '!', '?', '。', '！', '？')
         private val config = OnDeviceLlmConfig.defaultAndroid()
 
         private val multilingualCases =
