@@ -24,7 +24,6 @@ import com.itlab.notes.ui.notes.coerceDirectoryNameLength
 import com.itlab.notes.ui.notes.isVirtualDirectory
 import com.itlab.notes.ui.toSingleLineText
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -50,6 +49,7 @@ class NotesViewModel(
         private set
     private var notesJob: Job? = null
     private var aiJob: Job? = null
+    private var imageTaggingJob: Job? = null
     private var aiWarmUpJob: Job? = null
     private var aiWarmUpStarted = false
     private var aiReady = false
@@ -82,6 +82,7 @@ class NotesViewModel(
         viewModelScope.launch {
             useCases.getUserIdUseCase()?.let { ensureInitialFullSync(it) }
         }
+        warmUpAi()
     }
 
     fun ensureInitialFullSyncForCurrentUser() {
@@ -104,11 +105,11 @@ class NotesViewModel(
     override fun onEvent(event: NotesUiEvent) {
         when (event) {
             is NotesUiEvent.OpenDirectory -> {
-                releaseAiResourcesIfEditorOpen()
+                cancelAiGeneration()
                 openDirectory(event.directory)
             }
             NotesUiEvent.BackToDirectories -> {
-                releaseAiResources()
+                cancelAiGeneration()
                 backToDirectories()
             }
             is NotesUiEvent.OpenNote -> {
@@ -150,17 +151,17 @@ class NotesViewModel(
             }
             is NotesUiEvent.ToggleNoteFavorite -> toggleNoteFavorite(event.noteId)
             NotesUiEvent.BackToDirectoryNotes -> {
-                releaseAiResources()
+                cancelAiGeneration()
                 backToDirectoryNotes()
             }
             is NotesUiEvent.LeaveEditor -> {
-                releaseAiResources()
+                cancelAiGeneration()
                 leaveEditor(event.note)
             }
             is NotesUiEvent.PersistNote -> persistNote(event.note)
             is NotesUiEvent.SuggestSummary -> suggestAi(event.note, AiSuggestion.Summary)
             is NotesUiEvent.SuggestTags -> suggestAi(event.note, AiSuggestion.Tags)
-            is NotesUiEvent.SuggestImageTags -> suggestAi(event.note, AiSuggestion.ImageTags)
+            is NotesUiEvent.SuggestImageTags -> suggestImageTags(event.note)
             is NotesUiEvent.RewriteNote -> suggestAi(event.note, AiSuggestion.Rewrite)
             NotesUiEvent.CancelAiGeneration -> cancelAiGeneration()
             is NotesUiEvent.DeleteNote -> {
@@ -253,6 +254,7 @@ class NotesViewModel(
                 notes = emptyList(),
                 notesSearchQuery = "",
                 aiState = freshAiState(),
+                imageTaggingState = ImageTaggingUiState(),
             )
         startNotesCollection(directory, searchQuery = "")
     }
@@ -333,6 +335,7 @@ class NotesViewModel(
                 notes = emptyList(),
                 notesSearchQuery = "",
                 aiState = freshAiState(),
+                imageTaggingState = ImageTaggingUiState(),
             )
     }
 
@@ -348,6 +351,7 @@ class NotesViewModel(
                 uiState.copy(
                     screen = NotesUiScreen.NoteEditor(directory = dir, note = enriched),
                     aiState = freshAiState(),
+                    imageTaggingState = ImageTaggingUiState(),
                 )
             warmUpAi()
         }
@@ -364,6 +368,7 @@ class NotesViewModel(
             uiState.copy(
                 screen = NotesUiScreen.NoteEditor(directory = dir, note = newNote),
                 aiState = freshAiState(),
+                imageTaggingState = ImageTaggingUiState(),
             )
         warmUpAi()
     }
@@ -380,6 +385,7 @@ class NotesViewModel(
             uiState.copy(
                 screen = NotesUiScreen.DirectoryNotes(directory = directory),
                 aiState = freshAiState(),
+                imageTaggingState = ImageTaggingUiState(),
             )
         startNotesCollection(directory, uiState.notesSearchQuery)
     }
@@ -557,6 +563,7 @@ class NotesViewModel(
             uiState.copy(
                 screen = NotesUiScreen.DirectoryNotes(directory = directory),
                 aiState = freshAiState(),
+                imageTaggingState = ImageTaggingUiState(),
             )
         startNotesCollection(directory, uiState.notesSearchQuery)
     }
@@ -651,7 +658,7 @@ class NotesViewModel(
         note: NoteItemUi,
         suggestion: AiSuggestion,
     ) {
-        if (aiJob?.isActive == true) return
+        if (aiJob?.isActive == true || imageTaggingJob?.isActive == true) return
         if (!uiState.aiState.canGenerate) {
             warmUpAi()
             return
@@ -685,8 +692,14 @@ class NotesViewModel(
                             updateAiState { suggestion.successState(it) }
                         }
                     }.onFailure { error ->
-                        if (error !is CancellationException && uiState.isCurrentEditorNote(savedNote.id)) {
-                            updateAiState { suggestion.errorState(it, error) }
+                        if (uiState.isCurrentEditorNote(savedNote.id)) {
+                            updateAiState {
+                                if (error is CancellationException) {
+                                    suggestion.successState(it)
+                                } else {
+                                    suggestion.errorState(it, error)
+                                }
+                            }
                         }
                     }
             }
@@ -694,6 +707,54 @@ class NotesViewModel(
         job.invokeOnCompletion {
             if (aiJob === job) {
                 aiJob = null
+            }
+        }
+    }
+
+    private fun suggestImageTags(note: NoteItemUi) {
+        if (imageTaggingJob?.isActive == true || aiJob?.isActive == true) return
+
+        val editor = uiState.screen as? NotesUiScreen.NoteEditor ?: return
+        val job =
+            viewModelScope.launch {
+                updateImageTaggingState { it.startTagging() }
+                val savedNote =
+                    upsertEditorNote(note, editor.directory)
+                        .getOrElse { error ->
+                            updateImageTaggingState { it.failTagging(error) }
+                            return@launch
+                        }
+                updateEditorNote(savedNote)
+
+                val generated =
+                    generateImageTags(
+                        savedNote = savedNote,
+                        useCases = useCases,
+                        currentEditorNote = { uiState.requireCurrentEditorNote(savedNote.id) },
+                    )
+
+                generated
+                    .onSuccess { updatedNote ->
+                        if (uiState.isCurrentEditorNote(savedNote.id)) {
+                            updateEditorNote(updatedNote)
+                            updateImageTaggingState { it.finishTagging() }
+                        }
+                    }.onFailure { error ->
+                        if (uiState.isCurrentEditorNote(savedNote.id)) {
+                            updateImageTaggingState {
+                                if (error is CancellationException) {
+                                    it.finishTagging()
+                                } else {
+                                    it.failTagging(error)
+                                }
+                            }
+                        }
+                    }
+            }
+        imageTaggingJob = job
+        job.invokeOnCompletion {
+            if (imageTaggingJob === job) {
+                imageTaggingJob = null
             }
         }
     }
@@ -710,6 +771,10 @@ class NotesViewModel(
         uiState = uiState.copy(aiState = update(uiState.aiState))
     }
 
+    private fun updateImageTaggingState(update: (ImageTaggingUiState) -> ImageTaggingUiState) {
+        uiState = uiState.copy(imageTaggingState = update(uiState.imageTaggingState))
+    }
+
     private fun freshAiState(): AiUiState =
         AiUiState(
             isWarmingUp = aiWarmUpJob?.isActive == true,
@@ -719,28 +784,10 @@ class NotesViewModel(
     private fun cancelAiGeneration() {
         aiJob?.cancel()
         aiJob = null
+        imageTaggingJob?.cancel()
+        imageTaggingJob = null
         updateAiState { freshAiState() }
-    }
-
-    private fun releaseAiResourcesIfEditorOpen() {
-        if (uiState.screen is NotesUiScreen.NoteEditor) {
-            releaseAiResources()
-        } else {
-            cancelAiGeneration()
-        }
-    }
-
-    private fun releaseAiResources() {
-        aiJob?.cancel()
-        aiJob = null
-        aiWarmUpJob?.cancel()
-        aiWarmUpJob = null
-        aiWarmUpStarted = false
-        aiReady = false
-        updateAiState { AiUiState() }
-        viewModelScope.launch(Dispatchers.Default) {
-            useCases.releaseNoteAiUseCase()
-        }
+        updateImageTaggingState { ImageTaggingUiState() }
     }
 
     private fun warmUpAi() {
@@ -755,13 +802,16 @@ class NotesViewModel(
 
         aiWarmUpStarted = true
         updateAiState { it.copy(isWarmingUp = true, isReady = false, errorMessage = null) }
-        aiWarmUpJob =
+        val warmUpJob =
             viewModelScope.launch {
                 val result = useCases.warmUpNoteAiUseCase()
                 if (result.isSuccess) {
                     aiReady = true
                     updateAiState { it.copy(isWarmingUp = false, isReady = true, errorMessage = null) }
                 } else {
+                    if (result.exceptionOrNull() is CancellationException) {
+                        return@launch
+                    }
                     aiReady = false
                     aiWarmUpStarted = false
                     updateAiState {
@@ -777,6 +827,15 @@ class NotesViewModel(
                     }
                 }
             }
+        aiWarmUpJob = warmUpJob
+        warmUpJob.invokeOnCompletion { error ->
+            if (aiWarmUpJob === warmUpJob) {
+                aiWarmUpJob = null
+            }
+            if (error is CancellationException && !aiReady) {
+                aiWarmUpStarted = false
+            }
+        }
     }
 
     private fun recomputeDirectories() {
@@ -815,8 +874,8 @@ class NotesViewModel(
     override fun onCleared() {
         notesJob?.cancel()
         aiJob?.cancel()
+        imageTaggingJob?.cancel()
         aiWarmUpJob?.cancel()
-        useCases.releaseNoteAiUseCase()
         super.onCleared()
     }
 }

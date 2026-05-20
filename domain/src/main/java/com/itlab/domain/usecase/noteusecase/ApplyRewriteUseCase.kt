@@ -6,14 +6,18 @@ import kotlin.time.Clock
 
 class ApplyRewriteUseCase(
     private val repo: NotesRepository,
+    private val getUserIdUseCase: GetUserIdUseCase,
 ) {
     suspend operator fun invoke(
         noteId: String,
         rewrittenText: String,
     ): Result<Unit> =
         runCatching {
+            val userId =
+                getUserIdUseCase()
+                    ?: return Result.failure(IllegalStateException("User must be authenticated"))
             val note =
-                repo.getNoteById(noteId)
+                repo.getNoteById(noteId, userId)
                     ?: throw IllegalArgumentException("Note not found")
             val normalizedText = rewrittenText.trim()
             val nonTextContent = note.contentItems.filterNot { it is ContentItem.Text }

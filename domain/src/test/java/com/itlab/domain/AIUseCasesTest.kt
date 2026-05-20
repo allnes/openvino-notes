@@ -11,17 +11,20 @@ import com.itlab.domain.usecase.aiusecase.RewriteNoteUseCase
 import com.itlab.domain.usecase.aiusecase.SuggestImageTagsUseCase
 import com.itlab.domain.usecase.aiusecase.SuggestSummaryUseCase
 import com.itlab.domain.usecase.aiusecase.SuggestTagsUseCase
+import com.itlab.domain.usecase.aiusecase.WarmUpNoteAiUseCase
 import com.itlab.domain.usecase.noteusecase.ApplySummaryUseCase
 import com.itlab.domain.usecase.noteusecase.ApplyTagsUseCase
 import com.itlab.domain.usecase.noteusecase.GetUserIdUseCase
 import io.mockk.MockKAnnotations
 import io.mockk.every
 import io.mockk.impl.annotations.MockK
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -79,6 +82,11 @@ class AIUseCasesTest {
         var textTagsResult: Set<String> = setOf("text-tag-1", "text-tag-2")
         var imageTagsResult: Set<String> = setOf("image-tag-1", "image-tag-2")
         var releaseCalled: Boolean = false
+        var warmUpError: Throwable? = null
+
+        override suspend fun warmUp() {
+            warmUpError?.let { throw it }
+        }
 
         override suspend fun summarize(
             text: String,
@@ -224,7 +232,7 @@ class AIUseCasesTest {
                 FakeNoteAiService().apply {
                     imageTagsResult = setOf("image-1", "image-2")
                 }
-            val useCase = SuggestImageTagsUseCase(ai, repo)
+            val useCase = SuggestImageTagsUseCase(ai, repo, getUserIdUsecase)
 
             repo.createNote(
                 Note(
@@ -257,7 +265,7 @@ class AIUseCasesTest {
                 FakeNoteAiService().apply {
                     imageTagsResult = setOf("image-1", "image-2", "image-3")
                 }
-            val useCase = SuggestImageTagsUseCase(ai, repo)
+            val useCase = SuggestImageTagsUseCase(ai, repo, getUserIdUsecase)
 
             repo.createNote(
                 Note(
@@ -284,7 +292,7 @@ class AIUseCasesTest {
         runBlocking {
             val repo = FakeNotesRepo()
             val ai = FakeNoteAiService()
-            val useCase = SuggestImageTagsUseCase(ai, repo)
+            val useCase = SuggestImageTagsUseCase(ai, repo, getUserIdUsecase)
 
             val result = useCase("missing_id")
             assertEquals(true, result.isFailure)
@@ -302,11 +310,25 @@ class AIUseCasesTest {
     }
 
     @Test
+    fun warmUpNoteAi_propagatesCancellation() =
+        runBlocking {
+            val ai =
+                FakeNoteAiService().apply {
+                    warmUpError = CancellationException("warm-up was cancelled")
+                }
+            val useCase = WarmUpNoteAiUseCase(ai)
+
+            val error = runCatching<Result<Unit>> { useCase() }.exceptionOrNull()
+
+            assertTrue(error is CancellationException)
+        }
+
+    @Test
     fun rewriteNote_usesRewriteSizedGenerationBudget() =
         runBlocking {
             val repo = FakeNotesRepo()
             val ai = FakeNoteAiService()
-            val useCase = RewriteNoteUseCase(ai, repo)
+            val useCase = RewriteNoteUseCase(ai, repo, getUserIdUsecase)
 
             repo.createNote(
                 Note(

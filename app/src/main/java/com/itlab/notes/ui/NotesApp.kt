@@ -208,6 +208,7 @@ private fun notesMain(
                         screen.cloudSyncStatus
                     },
                 isCloudDownloadActive = state.isCloudDownloadActive,
+                imageTaggingState = state.imageTaggingState,
                 onBack = { draft -> viewModel.onEvent(NotesUiEvent.LeaveEditor(draft)) },
                 onPersist = { draft ->
                     viewModel.onEvent(NotesUiEvent.PersistNote(draft))

@@ -65,13 +65,13 @@ val appModule =
         factory { GetNoteUseCase(get(), get()) }
         factory { SuggestSummaryUseCase(get(), get(), get()) }
         factory { SuggestTagsUseCase(get(), get(), get()) }
-        factory { SuggestImageTagsUseCase(get(), get()) }
-        factory { RewriteNoteUseCase(get(), get()) }
+        factory { SuggestImageTagsUseCase(get(), get(), get()) }
+        factory { RewriteNoteUseCase(get(), get(), get()) }
         factory { WarmUpNoteAiUseCase(get()) }
         factory { ReleaseNoteAiUseCase(get()) }
         factory { ApplySummaryUseCase(get(), get()) }
         factory { ApplyTagsUseCase(get(), get()) }
-        factory { ApplyRewriteUseCase(get()) }
+        factory { ApplyRewriteUseCase(get(), get()) }
         factory {
             NotesUseCases(
                 createFolderUseCase = get(),

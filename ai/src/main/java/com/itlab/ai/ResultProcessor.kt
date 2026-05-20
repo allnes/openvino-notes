@@ -65,7 +65,9 @@ private object AnswerQuality {
         answer: String,
     ): Boolean =
         answer.isNotBlank() &&
-            !shouldUseSourceFallback(sourceText, answer)
+            !shouldUseSourceFallback(sourceText, answer) &&
+            !containsPromptArtifact(sourceText, answer) &&
+            preservesRewriteAnchors(sourceText, answer)
 
     fun extractiveSummary(sourceText: String): String =
         sourceText
@@ -88,14 +90,156 @@ private object AnswerQuality {
         return language.forbiddenOutputPattern?.containsMatchIn(answer) == true
     }
 
+    private fun containsPromptArtifact(
+        sourceText: String,
+        answer: String,
+    ): Boolean =
+        rewritePromptArtifacts.any { artifact ->
+            artifact.containsMatchIn(answer) && !artifact.containsMatchIn(sourceText)
+        }
+
+    private fun preservesRewriteAnchors(
+        sourceText: String,
+        answer: String,
+    ): Boolean {
+        val anchors = extractRewriteAnchors(sourceText)
+        if (anchors.isEmpty()) {
+            return true
+        }
+
+        val normalizedAnswer = GeneratedTextCleaner.normalizeForMatching(answer)
+        val requiredAnchors = anchors.filter { it.required }
+        if (requiredAnchors.isEmpty() && anchors.size < MIN_ANCHORS_FOR_OPTIONAL_MATCHING) {
+            return true
+        }
+        if (requiredAnchors.any { !it.matches(normalizedAnswer) }) {
+            return false
+        }
+
+        val matchedAnchors = anchors.count { it.matches(normalizedAnswer) }
+        val minimumMatches =
+            when {
+                anchors.size <= 2 -> 1
+                anchors.size <= 5 -> 2
+                else -> anchors.size / 2
+            }
+        return matchedAnchors >= minimumMatches
+    }
+
+    private fun extractRewriteAnchors(sourceText: String): List<RewriteAnchor> {
+        val language = NoteLanguageDetector.detect(sourceText)
+        return sourceWordRegex
+            .findAll(sourceText)
+            .mapIndexedNotNull { index, match ->
+                val raw = match.value.trim('.', ',', ';', ':', '!', '?', '(', ')', '[', ']', '"', '\'')
+                val normalized = GeneratedTextCleaner.normalizeForMatching(raw)
+                if (!isUsefulRewriteAnchor(normalized, language)) {
+                    null
+                } else {
+                    RewriteAnchor(
+                        normalized = normalized,
+                        required = isRequiredRewriteAnchor(index, raw, normalized),
+                    )
+                }
+            }.distinctBy { it.normalized }
+            .take(MAX_REWRITE_ANCHORS)
+            .toList()
+    }
+
+    private fun isUsefulRewriteAnchor(
+        normalized: String,
+        language: NoteLanguage,
+    ): Boolean =
+        normalized.length >= MIN_REWRITE_ANCHOR_LENGTH &&
+            normalized !in commonRewriteStopWords &&
+            normalized !in language.stopWords
+
+    private fun isRequiredRewriteAnchor(
+        index: Int,
+        raw: String,
+        normalized: String,
+    ): Boolean {
+        val hasDigit = raw.any { it.isDigit() }
+        val hasProductShape =
+            raw.length > 1 &&
+                raw.any { it.isUpperCase() } &&
+                raw.drop(1).any { it.isUpperCase() || it.isDigit() }
+        val hasProperNounShape =
+            index > 0 &&
+                raw.firstOrNull()?.isUpperCase() == true &&
+                raw.drop(1).any { it.isLowerCase() }
+        return hasDigit ||
+            hasProductShape ||
+            hasProperNounShape ||
+            requiredRewriteFragments.any { normalized.contains(it) }
+    }
+
     private const val MAX_GENERATED_SUMMARY_CHARS = 260
     private const val MAX_EXTRACTIVE_SUMMARY_CHARS = 240
+    private const val MIN_REWRITE_ANCHOR_LENGTH = 4
+    private const val MIN_ANCHORS_FOR_OPTIONAL_MATCHING = 3
+    private const val MAX_REWRITE_ANCHORS = 12
     private val sentenceBoundary = Regex("""(?<=[.!?。！？])\s+""")
+    private val sourceWordRegex = Regex("""[\p{L}\p{N}][\p{L}\p{N}_:+.-]{1,48}""")
+    private val rewritePromptArtifacts =
+        listOf(
+            Regex("""\bstart immediately with the rewritten note\b""", RegexOption.IGNORE_CASE),
+            Regex("""\breturn only\b""", RegexOption.IGNORE_CASE),
+            Regex("""\banswer only in\b""", RegexOption.IGNORE_CASE),
+            Regex("""\binvalid previous answer\b""", RegexOption.IGNORE_CASE),
+            Regex("""\bprevious rewrite was invalid\b""", RegexOption.IGNORE_CASE),
+            Regex("""\bdo not copy any instruction\b""", RegexOption.IGNORE_CASE),
+            Regex("""\bdo not explain\b""", RegexOption.IGNORE_CASE),
+            Regex("""^\s*(?:task|note|user note)\s*:""", RegexOption.IGNORE_CASE),
+        )
+    private val commonRewriteStopWords =
+        setOf(
+            "this",
+            "that",
+            "with",
+            "from",
+            "have",
+            "will",
+            "надо",
+            "нужно",
+            "если",
+            "еще",
+            "ещё",
+            "eine",
+            "einen",
+            "soll",
+            "muss",
+            "avec",
+            "pour",
+            "avant",
+            "doit",
+        )
+    private val requiredRewriteFragments =
+        listOf(
+            "openvino",
+            "android",
+            "qwen",
+            "firebase",
+            "gradle",
+            "release",
+            "debug",
+            "модель",
+            "опенвино",
+        )
+
+    private data class RewriteAnchor(
+        val normalized: String,
+        val required: Boolean,
+    ) {
+        fun matches(normalizedAnswer: String): Boolean =
+            normalizedAnswer.contains(normalized) ||
+                (normalized.length >= 6 && normalizedAnswer.contains(normalized.take(6)))
+    }
 }
 
 private object GeneratedTextCleaner {
     fun normalizeTextAnswer(raw: String): String =
-        stripLeadingAssistantLabel(stripGeneratedMetadataSections(raw))
+        stripLeadingInstructionEcho(stripLeadingAssistantLabel(stripGeneratedMetadataSections(raw)))
             .stripWrappingMarkdown()
             .trim()
 
@@ -103,6 +247,11 @@ private object GeneratedTextCleaner {
         raw
             .replace(leadingAssistantLabel, "")
             .replace(leadingPunctuationOnlyLine, "")
+            .trim()
+
+    private fun stripLeadingInstructionEcho(raw: String): String =
+        raw
+            .replace(leadingInstructionEcho, "")
             .trim()
 
     fun normalizeForMatching(text: String): String =
@@ -147,6 +296,13 @@ private object GeneratedTextCleaner {
             option = RegexOption.IGNORE_CASE,
         )
     private val leadingPunctuationOnlyLine = Regex("""^\s*[:：]\s*(?:\R+|$)""")
+    private val leadingInstructionEcho =
+        Regex(
+            pattern =
+                """^\s*(?:[-*]\s*)?(?:start immediately with the rewritten note|""" +
+                    """return only the rewritten note text|output only the rewritten note text)\s*[.!:]?\s*(?:\R+|$)""",
+            option = RegexOption.IGNORE_CASE,
+        )
     private val wrappingMarkdown = Regex("""(?:\*\*|__)(.*)(?:\*\*|__)""", RegexOption.DOT_MATCHES_ALL)
     private val diacriticInsensitivePunctuation = Regex("""[\p{Punct}\s]+""")
 }

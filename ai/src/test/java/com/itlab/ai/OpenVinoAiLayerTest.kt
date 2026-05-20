@@ -202,6 +202,34 @@ class OpenVinoAiLayerTest {
     }
 
     @Test
+    fun normalizeRewrite_withSourceFallsBackWhenPromptInstructionIsEchoed() {
+        val processor = ResultProcessor()
+        val source = "Discuss roadmap openvino tasks, groceries, and call Bob."
+
+        val result =
+            processor.normalizeRewrite(
+                raw = "Start immediately with the rewritten note.",
+                sourceText = source,
+            )
+
+        assertEquals(source, result)
+    }
+
+    @Test
+    fun normalizeRewrite_withSourceFallsBackWhenRequiredFactsAreLost() {
+        val processor = ResultProcessor()
+        val source = "Discuss roadmap openvino tasks, groceries, and call Bob."
+
+        val result =
+            processor.normalizeRewrite(
+                raw = "Start the work soon.",
+                sourceText = source,
+            )
+
+        assertEquals(source, result)
+    }
+
+    @Test
     fun summarize_returnsTrimmedSummary() =
         runBlocking {
             val backend = RecordingLlmBackend("  Summary text  ")
@@ -328,6 +356,7 @@ class OpenVinoAiLayerTest {
             assertEquals(LlmGenerationIntent.Rewrite, backend.lastIntent)
             assertTrue(backend.lastPrompt.orEmpty().contains("Rewrite the note"))
             assertTrue(backend.lastPrompt.orEmpty().contains("Do not summarize or translate"))
+            assertFalse(backend.lastPrompt.orEmpty().contains("Start immediately with the rewritten note"))
             assertTrue(backend.lastPrompt.orEmpty().contains("Draft note"))
         }
 
@@ -356,6 +385,34 @@ class OpenVinoAiLayerTest {
             assertEquals("Frau Müller koordiniert eine Qualitätsprüfung in Leipzig.", result)
             assertEquals(2, backend.generateCallCount)
             assertTrue(backend.prompts[1].contains("previous rewrite was invalid", ignoreCase = true))
+        }
+
+    @Test
+    fun rewrite_retriesPromptEchoAndDoesNotApplyBadRetry() =
+        runBlocking {
+            val source = "Discuss roadmap openvino tasks, groceries, and call Bob."
+            val backend =
+                RecordingLlmBackend(
+                    "Start immediately with the rewritten note.",
+                    "Start the work soon.",
+                )
+            val service =
+                OpenVinoNoteAiService(
+                    OpenVinoEngine(llmBackend = backend),
+                    ResultProcessor(),
+                )
+
+            val result =
+                service.rewrite(
+                    text = source,
+                    style = RewriteStyle.CLEANUP,
+                    maxInputTokens = OnDeviceLlmConfig.defaultAndroid().rewriteMaxInputTokens,
+                    maxNewTokens = OnDeviceLlmConfig.defaultAndroid().rewriteMaxNewTokens,
+                )
+
+            assertEquals(source, result)
+            assertEquals(2, backend.generateCallCount)
+            assertFalse(backend.prompts[1].contains("Start immediately with the rewritten note"))
         }
 
     @Test

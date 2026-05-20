@@ -33,6 +33,7 @@ data class NotesUiState(
     val directories: List<DirectoryItemUi> = emptyList(),
     val notes: List<NoteItemUi> = emptyList(),
     val aiState: AiUiState = AiUiState(),
+    val imageTaggingState: ImageTaggingUiState = ImageTaggingUiState(),
     val notesSearchQuery: String = "",
     val directorySearchQuery: String = "",
     /** Note ids currently uploading to cloud (visible in list + editor). */
@@ -46,15 +47,22 @@ data class AiUiState(
     val isReady: Boolean = false,
     val isGeneratingSummary: Boolean = false,
     val isGeneratingTags: Boolean = false,
-    val isGeneratingImageTags: Boolean = false,
     val isRewriting: Boolean = false,
     val errorMessage: String? = null,
 ) {
     val isGenerating: Boolean
-        get() = isGeneratingSummary || isGeneratingTags || isGeneratingImageTags || isRewriting
+        get() = isGeneratingSummary || isGeneratingTags || isRewriting
 
     val canGenerate: Boolean
         get() = isReady && !isWarmingUp && !isGenerating
+}
+
+data class ImageTaggingUiState(
+    val isTagging: Boolean = false,
+    val errorMessage: String? = null,
+) {
+    val canTagImages: Boolean
+        get() = !isTagging
 }
 
 sealed interface NotesUiEvent {

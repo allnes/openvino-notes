@@ -6,7 +6,6 @@ import kotlinx.coroutines.CancellationException
 internal enum class AiSuggestion {
     Summary,
     Tags,
-    ImageTags,
     Rewrite,
 }
 
@@ -29,14 +28,6 @@ internal suspend fun generateAiSuggestion(
         AiSuggestion.Tags ->
             useCases
                 .suggestTagsUseCase(savedNote.id)
-                .mapCatching { tags ->
-                    currentEditorNote()
-                    useCases.applyTagsUseCase(savedNote.id, tags).getOrThrow()
-                    currentEditorNote().copy(tags = tags)
-                }
-        AiSuggestion.ImageTags ->
-            useCases
-                .suggestImageTagsUseCase(savedNote.id)
                 .mapCatching { tags ->
                     currentEditorNote()
                     useCases.applyTagsUseCase(savedNote.id, tags).getOrThrow()
@@ -77,7 +68,6 @@ internal fun AiSuggestion.startState(state: AiUiState): AiUiState =
     when (this) {
         AiSuggestion.Summary -> state.copy(isGeneratingSummary = true, errorMessage = null)
         AiSuggestion.Tags -> state.copy(isGeneratingTags = true, errorMessage = null)
-        AiSuggestion.ImageTags -> state.copy(isGeneratingImageTags = true, errorMessage = null)
         AiSuggestion.Rewrite -> state.copy(isRewriting = true, errorMessage = null)
     }
 
@@ -85,7 +75,6 @@ internal fun AiSuggestion.successState(state: AiUiState): AiUiState =
     when (this) {
         AiSuggestion.Summary -> state.copy(isGeneratingSummary = false, errorMessage = null)
         AiSuggestion.Tags -> state.copy(isGeneratingTags = false, errorMessage = null)
-        AiSuggestion.ImageTags -> state.copy(isGeneratingImageTags = false, errorMessage = null)
         AiSuggestion.Rewrite -> state.copy(isRewriting = false, errorMessage = null)
     }
 
@@ -103,11 +92,6 @@ internal fun AiSuggestion.errorState(
             state.copy(
                 isGeneratingTags = false,
                 errorMessage = error.userMessage("Unable to suggest AI tags"),
-            )
-        AiSuggestion.ImageTags ->
-            state.copy(
-                isGeneratingImageTags = false,
-                errorMessage = error.userMessage("Unable to tag images"),
             )
         AiSuggestion.Rewrite ->
             state.copy(

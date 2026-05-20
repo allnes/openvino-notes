@@ -130,11 +130,12 @@ class NoteLlmPromptBuilder(
             ${rewriteInstruction(style, language)}
             Detected note language: ${language.displayName}.
             Answer only in ${language.answerInstruction}.
-            Start immediately with the rewritten note.
             Do not summarize or translate the note.
             Preserve every named person, location, deadline, number, condition, and user intent.
-            End with a complete sentence.
-            Keep the result concise. Return only the rewritten note text, without markdown, analysis, acknowledgements, or a preamble.
+            Keep concrete words from the note when they carry facts, names, dates, places, or product names.
+            If the note is already short, clean it up without changing its facts.
+            Output only the rewritten note text.
+            Do not copy any instruction, label, markdown, analysis, acknowledgement, or preamble from this prompt.
 
             Note:
             $note
@@ -144,6 +145,7 @@ class NoteLlmPromptBuilder(
         )
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun rewriteRetryPrompt(
         text: String,
         style: RewriteStyle,
@@ -155,14 +157,13 @@ class NoteLlmPromptBuilder(
         return chatPrompt(
             """
             The previous rewrite was invalid because it used the wrong language, lost facts, or included artifacts.
-            Rewrite it once more.
+            Rewrite the original note again, ignoring the invalid previous answer.
             ${rewriteInstruction(style, language)}
             Answer only in ${language.answerInstruction}.
             Preserve every named person, location, deadline, number, condition, and user intent.
-            Return only the corrected rewritten note. Do not explain the correction.
-
-            Invalid previous answer:
-            $previousAnswer
+            Keep concrete words from the note when they carry facts, names, dates, places, or product names.
+            Output only the corrected note text.
+            Do not copy any instruction, label, markdown, analysis, acknowledgement, or preamble from this prompt.
 
             Note:
             $note

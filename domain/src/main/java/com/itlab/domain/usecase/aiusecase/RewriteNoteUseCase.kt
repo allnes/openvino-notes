@@ -5,10 +5,12 @@ import com.itlab.domain.ai.RewriteStyle
 import com.itlab.domain.model.ContentItem
 import com.itlab.domain.model.Note
 import com.itlab.domain.repository.NotesRepository
+import com.itlab.domain.usecase.noteusecase.GetUserIdUseCase
 
 class RewriteNoteUseCase(
     private val ai: NoteAiService,
     private val repo: NotesRepository,
+    private val getUserIdUseCase: GetUserIdUseCase,
 ) {
     private fun extractText(note: Note): String =
         note.contentItems
@@ -22,8 +24,11 @@ class RewriteNoteUseCase(
         maxNewTokens: Int = 128,
     ): Result<String> =
         runCatching {
+            val userId =
+                getUserIdUseCase()
+                    ?: return Result.failure(IllegalStateException("User must be authenticated"))
             val note =
-                repo.getNoteById(noteId)
+                repo.getNoteById(noteId, userId)
                     ?: throw IllegalArgumentException("Note not found: $noteId")
 
             ai.rewrite(

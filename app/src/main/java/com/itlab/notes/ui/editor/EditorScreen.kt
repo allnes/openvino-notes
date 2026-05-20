@@ -103,6 +103,7 @@ import com.itlab.notes.media.isMediaLoadPending
 import com.itlab.notes.media.toCoilModel
 import com.itlab.notes.ui.AiUiState
 import com.itlab.notes.ui.EditorCloudSyncStatus
+import com.itlab.notes.ui.ImageTaggingUiState
 import com.itlab.notes.ui.asDomainFolderId
 import com.itlab.notes.ui.notes.NoteItemUi
 import com.itlab.notes.ui.toSingleLineText
@@ -135,6 +136,7 @@ fun editorScreen(
     aiState: AiUiState,
     cloudSyncStatus: EditorCloudSyncStatus = EditorCloudSyncStatus.Idle,
     isCloudDownloadActive: Boolean = false,
+    imageTaggingState: ImageTaggingUiState,
     onBack: (NoteItemUi) -> Unit,
     onPersist: (NoteItemUi) -> Unit,
     onToggleFavorite: () -> Unit,
@@ -235,6 +237,7 @@ fun editorScreen(
         ) {
             editorAiActionsBar(
                 aiState = aiState,
+                imageTaggingState = imageTaggingState,
                 hasImages = editorVm.attachments.any { it is ContentItem.Image },
                 onSuggestSummary = { onSuggestSummary(editorVm.buildUpdatedNote()) },
                 onSuggestTags = { onSuggestTags(editorVm.buildUpdatedNote()) },
@@ -377,8 +380,10 @@ private fun editorTopBar(
     )
 }
 
+@Composable
 private fun editorAiActionsBar(
     aiState: AiUiState,
+    imageTaggingState: ImageTaggingUiState,
     hasImages: Boolean,
     onSuggestSummary: () -> Unit,
     onSuggestTags: () -> Unit,
@@ -388,15 +393,21 @@ private fun editorAiActionsBar(
     modifier: Modifier = Modifier,
 ) {
     val statusText =
-        when {
-            aiState.isWarmingUp -> "Preparing AI model..."
-            aiState.isGeneratingSummary -> "Generating summary..."
-            aiState.isGeneratingTags -> "Generating AI tags..."
-            aiState.isGeneratingImageTags -> "Tagging images..."
-            aiState.isRewriting -> "Rewriting note..."
-            aiState.errorMessage != null -> aiState.errorMessage
-            else -> null
-        }
+        listOfNotNull(
+            when {
+                aiState.isWarmingUp -> "Preparing AI model..."
+                aiState.isGeneratingSummary -> "Generating summary..."
+                aiState.isGeneratingTags -> "Generating AI tags..."
+                aiState.isRewriting -> "Rewriting note..."
+                aiState.errorMessage != null -> aiState.errorMessage
+                else -> null
+            },
+            when {
+                imageTaggingState.isTagging -> "Tagging images..."
+                imageTaggingState.errorMessage != null -> imageTaggingState.errorMessage
+                else -> null
+            },
+        ).joinToString(separator = " | ").takeIf { it.isNotBlank() }
 
     Column(modifier = modifier) {
         LazyRow(
@@ -406,32 +417,32 @@ private fun editorAiActionsBar(
             item {
                 editorAiActionChip(
                     label = "Summary",
-                    enabled = aiState.canGenerate,
+                    enabled = aiState.canGenerate && !imageTaggingState.isTagging,
                     onClick = onSuggestSummary,
                 )
             }
             item {
                 editorAiActionChip(
                     label = "AI Tags",
-                    enabled = aiState.canGenerate,
+                    enabled = aiState.canGenerate && !imageTaggingState.isTagging,
                     onClick = onSuggestTags,
                 )
             }
             item {
                 editorAiActionChip(
                     label = "IMG Tags",
-                    enabled = aiState.canGenerate && hasImages,
+                    enabled = imageTaggingState.canTagImages && hasImages && !aiState.isGenerating,
                     onClick = onSuggestImageTags,
                 )
             }
             item {
                 editorAiActionChip(
                     label = "Rewrite",
-                    enabled = aiState.canGenerate,
+                    enabled = aiState.canGenerate && !imageTaggingState.isTagging,
                     onClick = onRewrite,
                 )
             }
-            if (aiState.isGenerating) {
+            if (aiState.isGenerating || imageTaggingState.isTagging) {
                 item {
                     editorAiActionChip(
                         label = "Cancel",
@@ -448,7 +459,7 @@ private fun editorAiActionsBar(
                 text = statusText,
                 style = MaterialTheme.typography.labelMedium,
                 color =
-                    if (aiState.errorMessage != null) {
+                    if (aiState.errorMessage != null || imageTaggingState.errorMessage != null) {
                         MaterialTheme.colorScheme.error
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
