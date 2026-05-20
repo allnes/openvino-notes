@@ -26,6 +26,7 @@ class OpenVinoYoloImageTagger(
     private val assetStore = AndroidAiAssetStore(appContext)
     private val preprocessor = YoloImagePreprocessor(config.inputSize)
     private val parser = YoloOutputParser(config)
+    private val deviceProfileProvider = AndroidVisionDeviceProfileProvider(appContext)
     private val lock = Any()
 
     private var core: Core? = null
@@ -60,6 +61,12 @@ class OpenVinoYoloImageTagger(
 
         val modelDir = ensureModelDirectory()
         classNames = loadClassNames(modelDir)
+        val selectedModel =
+            OnDeviceVisionModelResolver.selectAvailableModel(
+                config = config,
+                modelRootDir = modelDir,
+                profile = deviceProfileProvider.currentProfile(),
+            )
         val pluginsFile = ensureRuntimePluginsFile()
         val activeCore =
             if (pluginsFile.isFile) {
@@ -67,7 +74,7 @@ class OpenVinoYoloImageTagger(
             } else {
                 Core()
             }
-        val modelFile = File(modelDir, config.modelXmlFileName)
+        val modelFile = File(File(modelDir, selectedModel.assetSubdir), selectedModel.modelXmlFileName)
         val activeModel = activeCore.read_model(modelFile.absolutePath) ?: error("Failed to read $modelFile")
         val activeCompiledModel =
             activeCore.compile_model(activeModel, config.device)
@@ -77,7 +84,10 @@ class OpenVinoYoloImageTagger(
         model = activeModel
         compiledModel = activeCompiledModel
         inferRequest = activeCompiledModel.create_infer_request()
-        Log.i(TAG, "OpenVINO YOLO image tagger initialized with ${modelFile.absolutePath}")
+        Log.i(
+            TAG,
+            "OpenVINO YOLO image tagger initialized with ${selectedModel.id}: ${modelFile.absolutePath}",
+        )
     }
 
     private fun detectTagsLocked(source: String): Set<String> {

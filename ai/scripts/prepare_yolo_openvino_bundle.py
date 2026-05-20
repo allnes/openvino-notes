@@ -13,6 +13,11 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+DEFAULT_MODEL_SPECS = [
+    "standard=yolo26n.pt",
+    "compact=yolov10n.pt",
+]
+
 
 def run(command: list[str], cwd: Path | None = None) -> None:
     subprocess.run(command, cwd=cwd, check=True)
@@ -83,6 +88,18 @@ print(Path.cwd() / expected)
     return model_dir
 
 
+def parse_model_spec(model_spec: str) -> tuple[str, str]:
+    alias, separator, model_name = model_spec.partition("=")
+    if not separator:
+        model_name = alias
+        alias = Path(model_name).stem
+    alias = alias.strip()
+    model_name = model_name.strip()
+    if not alias or not model_name:
+        raise ValueError(f"Invalid model spec: {model_spec!r}. Expected alias=model.pt or model.pt.")
+    return alias, model_name
+
+
 def write_coco_names(
     python: Path,
     model_name: str,
@@ -106,6 +123,7 @@ def verify_openvino_model(
     python: Path,
     model_xml: Path,
     image_size: int,
+    model_alias: str,
 ) -> None:
     verify_code = f"""
 from openvino import Core
@@ -125,7 +143,7 @@ if not inputs:
 input_shape = [int(dim) for dim in inputs[0].shape]
 if input_shape[-1] != {image_size} or input_shape[-2] != {image_size}:
     raise RuntimeError(f"Expected {image_size}x{image_size} input, got {{input_shape}}")
-print("Verified OpenVINO YOLO model", input_shape, shape)
+print("Verified OpenVINO YOLO model {model_alias}", input_shape, shape)
 """
     run([str(python), "-c", verify_code])
 
@@ -133,16 +151,20 @@ print("Verified OpenVINO YOLO model", input_shape, shape)
 def copy_model_files(
     model_dir: Path,
     output_dir: Path,
+    model_alias: str,
     model_stem: str,
-) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
+) -> Path:
+    output_model_dir = output_dir / model_alias
+    output_model_dir.mkdir(parents=True, exist_ok=True)
     required = [f"{model_stem}.xml", f"{model_stem}.bin", "metadata.yaml"]
     missing = [name for name in required if not (model_dir / name).is_file()]
     if missing:
         raise FileNotFoundError(f"OpenVINO model export is missing required files: {missing}")
 
     for name in required:
-        shutil.copy2(model_dir / name, output_dir / name)
+        shutil.copy2(model_dir / name, output_model_dir / name)
+
+    return output_model_dir
 
 
 def sha256(file: Path) -> str:
@@ -155,15 +177,21 @@ def sha256(file: Path) -> str:
 
 def write_manifest(
     output_dir: Path,
-    model_name: str,
+    models: list[dict[str, Any]],
     image_size: int,
 ) -> None:
-    files = sorted(path for path in output_dir.iterdir() if path.is_file())
+    files = sorted(path for path in output_dir.rglob("*") if path.is_file())
     manifest: dict[str, Any] = {
-        "format": "openvino-yolo-image-tagger",
-        "model": model_name,
+        "format": "openvino-yolo-image-tagger-bundle",
         "image_size": image_size,
-        "files": {path.name: {"sha256": sha256(path), "size": path.stat().st_size} for path in files},
+        "models": models,
+        "files": {
+            path.relative_to(output_dir).as_posix(): {
+                "sha256": sha256(path),
+                "size": path.stat().st_size,
+            }
+            for path in files
+        },
     }
     (output_dir / "openvino_vision_manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
@@ -177,14 +205,19 @@ def write_zip(
 ) -> None:
     zip_output.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for file in sorted(output_dir.iterdir()):
+        for file in sorted(output_dir.rglob("*")):
             if file.is_file():
-                archive.write(file, file.name)
+                archive.write(file, file.relative_to(output_dir).as_posix())
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default="yolo26n.pt")
+    parser.add_argument(
+        "--model",
+        action="append",
+        dest="models",
+        help="Model spec as alias=model.pt or model.pt. Defaults to standard=yolo26n.pt and compact=yolov10n.pt.",
+    )
     parser.add_argument("--image-size", type=int, default=640)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--work-dir", required=True, type=Path)
@@ -199,16 +232,37 @@ def main() -> None:
     if args.zip_output:
         args.zip_output = args.zip_output.resolve()
     args.work_dir.mkdir(parents=True, exist_ok=True)
+    if args.output_dir.exists():
+        shutil.rmtree(args.output_dir)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     python = ensure_venv(args.work_dir / ".venv")
     ensure_python_packages(python)
 
-    model_dir = export_model(python, args.model, args.work_dir, args.image_size)
-    model_stem = Path(args.model).stem
-    copy_model_files(model_dir, args.output_dir, model_stem)
-    write_coco_names(python, args.model, args.work_dir, args.output_dir / "coco.names")
-    verify_openvino_model(python, args.output_dir / f"{model_stem}.xml", args.image_size)
-    write_manifest(args.output_dir, args.model, args.image_size)
+    model_specs = args.models or DEFAULT_MODEL_SPECS
+    parsed_models = [parse_model_spec(model_spec) for model_spec in model_specs]
+    write_coco_names(python, parsed_models[0][1], args.work_dir, args.output_dir / "coco.names")
+
+    manifest_models: list[dict[str, Any]] = []
+    for model_alias, model_name in parsed_models:
+        model_dir = export_model(python, model_name, args.work_dir, args.image_size)
+        model_stem = Path(model_name).stem
+        output_model_dir = copy_model_files(model_dir, args.output_dir, model_alias, model_stem)
+        verify_openvino_model(
+            python,
+            output_model_dir / f"{model_stem}.xml",
+            args.image_size,
+            model_alias,
+        )
+        manifest_models.append(
+            {
+                "id": model_alias,
+                "source_model": model_name,
+                "directory": model_alias,
+                "xml": f"{model_stem}.xml",
+            },
+        )
+
+    write_manifest(args.output_dir, manifest_models, args.image_size)
     if args.zip_output:
         write_zip(args.output_dir, args.zip_output)
         print(f"Wrote {args.zip_output}")

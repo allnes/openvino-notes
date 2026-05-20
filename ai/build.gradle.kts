@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.net.URI
 
 plugins {
     alias(libs.plugins.android.library)
@@ -103,7 +104,6 @@ val resolvedOnDeviceLlmAssetSourceDir =
 val onDeviceLlmAssetRootDir = layout.buildDirectory.dir("generated/openvinoLlmAssets")
 val onDeviceLlmAssetDir = onDeviceLlmAssetRootDir.map { it.dir("models/on-device-llm-openvino") }
 
-val onDeviceVisionModelName = providers.gradleProperty("onDeviceVisionModelName").orElse("yolo26n")
 val onDeviceVisionBundleRepo =
     providers.gradleProperty("onDeviceVisionBundleRepo").orElse(openvinoAndroidPrebuildRepo)
 val onDeviceVisionBundleReleaseTag =
@@ -111,7 +111,7 @@ val onDeviceVisionBundleReleaseTag =
 val onDeviceVisionBundleArtifactName =
     providers
         .gradleProperty("onDeviceVisionBundleArtifactName")
-        .orElse(onDeviceVisionModelName.map { "on-device-vision-$it-openvino.zip" })
+        .orElse("on-device-vision-openvino.zip")
 val onDeviceVisionBundleDownloadDir =
     layout.buildDirectory.dir("vision/model-bundle/download/${onDeviceVisionBundleReleaseTag.get()}")
 val onDeviceVisionBundleExtractDir =
@@ -125,6 +125,8 @@ val resolvedOnDeviceVisionAssetSourceDir =
     onDeviceVisionPreparedDir.orElse(onDeviceVisionBundleExtractDir.map { it.asFile.absolutePath })
 val onDeviceVisionAssetRootDir = layout.buildDirectory.dir("generated/openvinoVisionAssets")
 val onDeviceVisionAssetDir = onDeviceVisionAssetRootDir.map { it.dir("models/on-device-vision-openvino") }
+val visionTestImageAssetRootDir = layout.buildDirectory.dir("generated/openvinoVisionAndroidTestAssets")
+val visionTestImageFile = visionTestImageAssetRootDir.map { it.file("bus.jpg") }
 
 android {
     namespace = "com.itlab.ai"
@@ -150,6 +152,9 @@ android {
             assets.directories.add(openvinoRuntimeAssetRootDir.get().asFile.absolutePath)
             assets.directories.add(onDeviceLlmAssetRootDir.get().asFile.absolutePath)
             assets.directories.add(onDeviceVisionAssetRootDir.get().asFile.absolutePath)
+        }
+        getByName("androidTest") {
+            assets.directories.add(visionTestImageAssetRootDir.get().asFile.absolutePath)
         }
     }
 
@@ -399,6 +404,30 @@ tasks.register<Copy>("stageOpenVinoVisionAssets") {
     }
 }
 
+val downloadVisionTestImage by tasks.registering {
+    group = "verification"
+    description = "Download the Android vision instrumentation test image."
+
+    outputs.file(visionTestImageFile)
+
+    doLast {
+        val outputFile = visionTestImageFile.get().asFile
+        if (outputFile.isFile && outputFile.length() > 0L) {
+            return@doLast
+        }
+
+        outputFile.parentFile.mkdirs()
+        URI("https://github.com/ultralytics/yolov5/raw/master/data/images/bus.jpg")
+            .toURL()
+            .openStream()
+            .use { input ->
+                outputFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+    }
+}
+
 tasks.named("preBuild") {
     dependsOn(extractOpenVinoAndroidPrebuilds)
     dependsOn(stageOpenVinoRuntimeAssets)
@@ -408,4 +437,8 @@ tasks.named("preBuild") {
 
 tasks.matching { it.name.startsWith("compile") }.configureEach {
     dependsOn(extractOpenVinoAndroidPrebuilds)
+}
+
+tasks.matching { it.name == "preDebugAndroidTestBuild" || it.name == "mergeDebugAndroidTestAssets" }.configureEach {
+    dependsOn(downloadVisionTestImage)
 }

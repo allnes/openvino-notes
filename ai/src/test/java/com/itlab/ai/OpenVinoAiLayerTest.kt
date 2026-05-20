@@ -416,6 +416,39 @@ class OpenVinoAiLayerTest {
     }
 
     @Test
+    fun onDeviceVisionModelSelector_usesStandardModelForCapableDevices() {
+        val model =
+            OnDeviceVisionModelSelector.select(
+                OnDeviceVisionConfig.defaultAndroid(),
+                OnDeviceVisionDeviceProfile(cpuCores = 8, totalRamMb = 4096),
+            )
+
+        assertEquals("standard", model.id)
+    }
+
+    @Test
+    fun onDeviceVisionModelSelector_usesCompactModelForWeakDevices() {
+        val model =
+            OnDeviceVisionModelSelector.select(
+                OnDeviceVisionConfig.defaultAndroid(),
+                OnDeviceVisionDeviceProfile(cpuCores = 2, totalRamMb = 1024),
+            )
+
+        assertEquals("compact", model.id)
+    }
+
+    @Test
+    fun onDeviceVisionModelSelector_respectsExplicitModelPreference() {
+        val model =
+            OnDeviceVisionModelSelector.select(
+                OnDeviceVisionConfig.defaultAndroid().copy(preferredModelId = "compact"),
+                OnDeviceVisionDeviceProfile(cpuCores = 8, totalRamMb = 4096),
+            )
+
+        assertEquals("compact", model.id)
+    }
+
+    @Test
     fun noteLlmPromptBuilder_trimsLargeInput() {
         val config = OnDeviceLlmConfig.defaultAndroid().copy(maxInputChars = 5)
         val builder = NoteLlmPromptBuilder(config)
