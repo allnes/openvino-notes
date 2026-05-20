@@ -2,6 +2,7 @@ package com.itlab
 
 import com.itlab.domain.usecase.aiusecase.ReleaseNoteAiUseCase
 import com.itlab.domain.usecase.aiusecase.RewriteNoteUseCase
+import com.itlab.domain.usecase.aiusecase.SuggestImageTagsUseCase
 import com.itlab.domain.usecase.aiusecase.SuggestSummaryUseCase
 import com.itlab.domain.usecase.aiusecase.SuggestTagsUseCase
 import com.itlab.domain.usecase.aiusecase.WarmUpNoteAiUseCase
@@ -60,6 +61,7 @@ val appModule =
         factory { GetNoteUseCase(get()) }
         factory { SuggestSummaryUseCase(get(), get()) }
         factory { SuggestTagsUseCase(get(), get()) }
+        factory { SuggestImageTagsUseCase(get(), get()) }
         factory { RewriteNoteUseCase(get(), get()) }
         factory { WarmUpNoteAiUseCase(get()) }
         factory { ReleaseNoteAiUseCase(get()) }
@@ -96,6 +98,7 @@ val appModule =
                 getNoteUseCase = get(),
                 suggestSummaryUseCase = get(),
                 suggestTagsUseCase = get(),
+                suggestImageTagsUseCase = get(),
                 rewriteNoteUseCase = get(),
                 warmUpNoteAiUseCase = get(),
                 releaseNoteAiUseCase = get(),

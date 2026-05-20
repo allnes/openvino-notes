@@ -2,6 +2,7 @@ package com.itlab.notes.ui
 
 import com.itlab.domain.usecase.aiusecase.ReleaseNoteAiUseCase
 import com.itlab.domain.usecase.aiusecase.RewriteNoteUseCase
+import com.itlab.domain.usecase.aiusecase.SuggestImageTagsUseCase
 import com.itlab.domain.usecase.aiusecase.SuggestSummaryUseCase
 import com.itlab.domain.usecase.aiusecase.SuggestTagsUseCase
 import com.itlab.domain.usecase.aiusecase.WarmUpNoteAiUseCase
@@ -44,6 +45,7 @@ data class NotesUseCases(
     val getNoteUseCase: GetNoteUseCase,
     val suggestSummaryUseCase: SuggestSummaryUseCase,
     val suggestTagsUseCase: SuggestTagsUseCase,
+    val suggestImageTagsUseCase: SuggestImageTagsUseCase,
     val rewriteNoteUseCase: RewriteNoteUseCase,
     val warmUpNoteAiUseCase: WarmUpNoteAiUseCase,
     val releaseNoteAiUseCase: ReleaseNoteAiUseCase,

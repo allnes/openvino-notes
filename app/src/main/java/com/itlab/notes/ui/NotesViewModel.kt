@@ -114,6 +114,7 @@ class NotesViewModel(
             is NotesUiEvent.PersistNote -> persistNote(event.note)
             is NotesUiEvent.SuggestSummary -> suggestAi(event.note, AiSuggestion.Summary)
             is NotesUiEvent.SuggestTags -> suggestAi(event.note, AiSuggestion.Tags)
+            is NotesUiEvent.SuggestImageTags -> suggestAi(event.note, AiSuggestion.ImageTags)
             is NotesUiEvent.RewriteNote -> suggestAi(event.note, AiSuggestion.Rewrite)
             NotesUiEvent.CancelAiGeneration -> cancelAiGeneration()
             is NotesUiEvent.DeleteNote -> {

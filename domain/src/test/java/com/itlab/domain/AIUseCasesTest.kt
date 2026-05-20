@@ -8,6 +8,7 @@ import com.itlab.domain.model.Note
 import com.itlab.domain.repository.NotesRepository
 import com.itlab.domain.usecase.aiusecase.ReleaseNoteAiUseCase
 import com.itlab.domain.usecase.aiusecase.RewriteNoteUseCase
+import com.itlab.domain.usecase.aiusecase.SuggestImageTagsUseCase
 import com.itlab.domain.usecase.aiusecase.SuggestSummaryUseCase
 import com.itlab.domain.usecase.aiusecase.SuggestTagsUseCase
 import com.itlab.domain.usecase.noteusecase.ApplySummaryUseCase
@@ -145,7 +146,7 @@ class AIUseCasesTest {
         }
 
     @Test
-    fun suggestTags_returnsMergedTags_andSendsTextAndImagesToAi() =
+    fun suggestTags_returnsTextTags_andDoesNotSendImagesToAi() =
         runBlocking {
             val repo = FakeNotesRepo()
             val ai = FakeNoteAiService()
@@ -177,16 +178,8 @@ class AIUseCasesTest {
             val result = useCase("n2")
 
             assertEquals("First line\nSecond line", ai.textTagsInput)
-
-            assertEquals(
-                listOf("/local/image.png", "https://example.com/image.jpg"),
-                ai.imageTagsInput,
-            )
-
-            assertEquals(
-                setOf("text-tag-1", "text-tag-2", "image-tag-1", "image-tag-2"),
-                result.getOrThrow(),
-            )
+            assertEquals(emptyList<String>(), ai.imageTagsInput)
+            assertEquals(setOf("text-tag-1", "text-tag-2"), result.getOrThrow())
         }
 
     @Test
@@ -202,24 +195,23 @@ class AIUseCasesTest {
         }
 
     @Test
-    fun suggestTags_keepsImageTagWhenTextTagsFillBudget() =
+    fun suggestImageTags_returnsImageTagsAndSendsOnlyImagesToAi() =
         runBlocking {
             val repo = FakeNotesRepo()
             val ai =
                 FakeNoteAiService().apply {
-                    textTagsResult = setOf("text-1", "text-2", "text-3", "text-4")
                     imageTagsResult = setOf("image-1", "image-2")
                 }
-            val useCase = SuggestTagsUseCase(ai, repo)
+            val useCase = SuggestImageTagsUseCase(ai, repo)
 
             repo.createNote(
                 Note(
-                    id = "n-tags",
-                    title = "Tags",
+                    id = "n-img-tags",
+                    title = "Image tags",
                     userId = testUserId,
                     contentItems =
                         listOf(
-                            ContentItem.Text(text = "Text with enough topics"),
+                            ContentItem.Text(text = "Text is ignored for image tags"),
                             ContentItem.Image(
                                 source = DataSource(localPath = "/local/image.png"),
                                 mimeType = "image/png",
@@ -228,9 +220,53 @@ class AIUseCasesTest {
                 ),
             )
 
-            val result = useCase("n-tags", maxTags = 4)
+            val result = useCase("n-img-tags", maxTags = 4)
 
-            assertEquals(setOf("text-1", "text-2", "text-3", "image-1"), result.getOrThrow())
+            assertEquals(null, ai.textTagsInput)
+            assertEquals(listOf("/local/image.png"), ai.imageTagsInput)
+            assertEquals(setOf("image-1", "image-2"), result.getOrThrow())
+        }
+
+    @Test
+    fun suggestImageTags_capsGeneratedTags() =
+        runBlocking {
+            val repo = FakeNotesRepo()
+            val ai =
+                FakeNoteAiService().apply {
+                    imageTagsResult = setOf("image-1", "image-2", "image-3")
+                }
+            val useCase = SuggestImageTagsUseCase(ai, repo)
+
+            repo.createNote(
+                Note(
+                    id = "n-img-tags-limit",
+                    title = "Image tags",
+                    userId = testUserId,
+                    contentItems =
+                        listOf(
+                            ContentItem.Image(
+                                source = DataSource(remoteUrl = "https://example.com/image.jpg"),
+                                mimeType = "image/jpg",
+                            ),
+                        ),
+                ),
+            )
+
+            val result = useCase("n-img-tags-limit", maxTags = 2)
+
+            assertEquals(setOf("image-1", "image-2"), result.getOrThrow())
+        }
+
+    @Test
+    fun suggestImageTags_throwsIfNoteNotFound() =
+        runBlocking {
+            val repo = FakeNotesRepo()
+            val ai = FakeNoteAiService()
+            val useCase = SuggestImageTagsUseCase(ai, repo)
+
+            val result = useCase("missing_id")
+            assertEquals(true, result.isFailure)
+            assertEquals("Note not found: missing_id", result.exceptionOrNull()?.message)
         }
 
     @Test

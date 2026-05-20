@@ -5,18 +5,19 @@ import com.itlab.domain.model.ContentItem
 import com.itlab.domain.model.Note
 import com.itlab.domain.repository.NotesRepository
 
-class SuggestTagsUseCase(
+class SuggestImageTagsUseCase(
     private val ai: NoteAiService,
     private val repo: NotesRepository,
 ) {
-    private fun extractText(note: Note): String =
+    private fun extractImages(note: Note): List<String> =
         note.contentItems
-            .filterIsInstance<ContentItem.Text>()
-            .joinToString("\n") { it.text }
+            .filterIsInstance<ContentItem.Image>()
+            .mapNotNull { image ->
+                image.source.localPath ?: image.source.remoteUrl
+            }
 
     suspend operator fun invoke(
         noteId: String,
-        maxInputTokens: Int = 384,
         maxTags: Int = 4,
     ): Result<Set<String>> =
         runCatching {
@@ -24,10 +25,9 @@ class SuggestTagsUseCase(
                 repo.getNoteById(noteId)
                     ?: throw IllegalArgumentException("Note not found: $noteId")
 
-            ai.suggestTags(
-                text = extractText(note),
-                maxInputTokens = maxInputTokens,
-                maxTags = maxTags,
-            )
+            val imageTags = ai.tagIMGs(extractImages(note))
+            imageTags
+                .take(maxTags.coerceAtLeast(0))
+                .toSet()
         }
 }

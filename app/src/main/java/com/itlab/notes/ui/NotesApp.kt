@@ -188,6 +188,9 @@ private fun notesMain(
                 onSuggestTags = { draft ->
                     viewModel.onEvent(NotesUiEvent.SuggestTags(draft))
                 },
+                onSuggestImageTags = { draft ->
+                    viewModel.onEvent(NotesUiEvent.SuggestImageTags(draft))
+                },
                 onRewrite = { draft ->
                     viewModel.onEvent(NotesUiEvent.RewriteNote(draft))
                 },

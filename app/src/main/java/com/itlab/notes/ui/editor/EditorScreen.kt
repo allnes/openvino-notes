@@ -138,6 +138,7 @@ fun editorScreen(
     onToggleFavorite: () -> Unit,
     onSuggestSummary: (NoteItemUi) -> Unit,
     onSuggestTags: (NoteItemUi) -> Unit,
+    onSuggestImageTags: (NoteItemUi) -> Unit,
     onRewrite: (NoteItemUi) -> Unit,
     onCancelAi: () -> Unit,
 ) {
@@ -233,8 +234,10 @@ fun editorScreen(
         ) {
             editorAiActionsBar(
                 aiState = aiState,
+                hasImages = editorVm.attachments.any { it is ContentItem.Image },
                 onSuggestSummary = { onSuggestSummary(editorVm.buildUpdatedNote()) },
                 onSuggestTags = { onSuggestTags(editorVm.buildUpdatedNote()) },
+                onSuggestImageTags = { onSuggestImageTags(editorVm.buildUpdatedNote()) },
                 onRewrite = { onRewrite(editorVm.buildUpdatedNote()) },
                 onCancelAi = onCancelAi,
                 modifier =
@@ -383,8 +386,10 @@ private fun editorFab(
 @Composable
 private fun editorAiActionsBar(
     aiState: AiUiState,
+    hasImages: Boolean,
     onSuggestSummary: () -> Unit,
     onSuggestTags: () -> Unit,
+    onSuggestImageTags: () -> Unit,
     onRewrite: () -> Unit,
     onCancelAi: () -> Unit,
     modifier: Modifier = Modifier,
@@ -393,7 +398,8 @@ private fun editorAiActionsBar(
         when {
             aiState.isWarmingUp -> "Preparing AI model..."
             aiState.isGeneratingSummary -> "Generating summary..."
-            aiState.isGeneratingTags -> "Suggesting tags..."
+            aiState.isGeneratingTags -> "Generating AI tags..."
+            aiState.isGeneratingImageTags -> "Tagging images..."
             aiState.isRewriting -> "Rewriting note..."
             aiState.errorMessage != null -> aiState.errorMessage
             else -> null
@@ -413,9 +419,16 @@ private fun editorAiActionsBar(
             }
             item {
                 editorAiActionChip(
-                    label = "Tags",
+                    label = "AI Tags",
                     enabled = aiState.canGenerate,
                     onClick = onSuggestTags,
+                )
+            }
+            item {
+                editorAiActionChip(
+                    label = "IMG Tags",
+                    enabled = aiState.canGenerate && hasImages,
+                    onClick = onSuggestImageTags,
                 )
             }
             item {

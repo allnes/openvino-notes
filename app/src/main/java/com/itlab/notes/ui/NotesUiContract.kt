@@ -34,11 +34,12 @@ data class AiUiState(
     val isReady: Boolean = false,
     val isGeneratingSummary: Boolean = false,
     val isGeneratingTags: Boolean = false,
+    val isGeneratingImageTags: Boolean = false,
     val isRewriting: Boolean = false,
     val errorMessage: String? = null,
 ) {
     val isGenerating: Boolean
-        get() = isGeneratingSummary || isGeneratingTags || isRewriting
+        get() = isGeneratingSummary || isGeneratingTags || isGeneratingImageTags || isRewriting
 
     val canGenerate: Boolean
         get() = isReady && !isWarmingUp && !isGenerating
@@ -86,6 +87,10 @@ sealed interface NotesUiEvent {
     ) : NotesUiEvent
 
     data class SuggestTags(
+        val note: NoteItemUi,
+    ) : NotesUiEvent
+
+    data class SuggestImageTags(
         val note: NoteItemUi,
     ) : NotesUiEvent
 
