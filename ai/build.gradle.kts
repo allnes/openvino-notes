@@ -4,6 +4,19 @@ plugins {
     alias(libs.plugins.android.library)
 }
 
+val defaultPythonExecutable =
+    providers.provider {
+        if (System.getProperty("os.name").contains("Windows", ignoreCase = true)) {
+            "python"
+        } else {
+            "python3"
+        }
+    }
+val pythonExecutable =
+    providers
+        .gradleProperty("pythonExecutable")
+        .orElse(defaultPythonExecutable)
+
 val openvinoAndroidPrebuildRepo =
     providers.gradleProperty("openvinoAndroidPrebuildRepo").orElse("embedded-dev-research/openvino-notes")
 val openvinoAndroidPrebuildReleaseTag =
@@ -204,7 +217,7 @@ val downloadOpenVinoAndroidCommonPrebuild by tasks.registering(Exec::class) {
     }
 
     commandLine(
-        "python3",
+        pythonExecutable.get(),
         "scripts/download_openvino_prebuild.py",
         "--repo",
         openvinoAndroidPrebuildRepo.get(),
@@ -231,7 +244,7 @@ val downloadOpenVinoAndroidRuntimePrebuild by tasks.registering(Exec::class) {
     }
 
     commandLine(
-        "python3",
+        pythonExecutable.get(),
         "scripts/download_openvino_prebuild.py",
         "--repo",
         openvinoAndroidPrebuildRepo.get(),
@@ -288,7 +301,7 @@ val downloadOpenVinoLlmModelBundle by tasks.registering(Exec::class) {
     }
 
     commandLine(
-        "python3",
+        pythonExecutable.get(),
         "scripts/download_openvino_prebuild.py",
         "--repo",
         onDeviceLlmBundleRepo.get(),
@@ -344,7 +357,7 @@ val downloadOpenVinoVisionModelBundle by tasks.registering(Exec::class) {
     }
 
     commandLine(
-        "python3",
+        pythonExecutable.get(),
         "scripts/download_openvino_prebuild.py",
         "--repo",
         onDeviceVisionBundleRepo.get(),

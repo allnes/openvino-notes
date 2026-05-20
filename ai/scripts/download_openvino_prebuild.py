@@ -45,6 +45,14 @@ def download_request(url: str, token: str | None, range_start: int = 0) -> urlli
     return urllib.request.Request(url, headers=headers)
 
 
+def head_request(url: str) -> urllib.request.Request:
+    return urllib.request.Request(
+        url,
+        headers={"User-Agent": "openvino-notes-prebuild-downloader"},
+        method="HEAD",
+    )
+
+
 class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
         return None
@@ -222,6 +230,21 @@ def write_direct_download_metadata(
     )
 
 
+def remote_content_length(url: str, timeout: int) -> int | None:
+    try:
+        with urllib.request.urlopen(head_request(url), timeout=timeout) as response:
+            content_length = response.headers.get("Content-Length")
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError):
+        return None
+
+    if not content_length:
+        return None
+    try:
+        return int(content_length)
+    except ValueError:
+        return None
+
+
 def existing_file_matches_asset(file: Path, asset: dict[str, Any]) -> bool:
     if not file.is_file() or file.stat().st_size <= 0:
         return False
@@ -233,8 +256,54 @@ def existing_file_matches_asset(file: Path, asset: dict[str, Any]) -> bool:
     return load_existing_metadata(file) == current_asset_metadata(asset)
 
 
+def existing_file_matches_direct_download(
+    file: Path,
+    repo: str,
+    release_tag: str,
+    artifact_name: str,
+    expected_size: int | None,
+) -> bool:
+    if not file.is_file() or file.stat().st_size <= 0:
+        return False
+
+    actual_size = file.stat().st_size
+    if expected_size is not None:
+        return actual_size == expected_size
+
+    metadata = load_existing_metadata(file)
+    if not metadata:
+        return False
+
+    metadata_size = metadata.get("size")
+    if not isinstance(metadata_size, int) or actual_size != metadata_size:
+        return False
+
+    if metadata.get("download") == "direct-release-asset":
+        return (
+            metadata.get("repo") == repo
+            and metadata.get("release_tag") == release_tag
+            and metadata.get("name") == artifact_name
+        )
+
+    return metadata.get("name") == artifact_name
+
+
 def download_direct_release_asset(args: argparse.Namespace) -> None:
     download_url = direct_release_asset_url(args.repo, args.release_tag, args.artifact_name)
+    expected_size = remote_content_length(download_url, args.timeout)
+    if existing_file_matches_direct_download(
+        args.output,
+        args.repo,
+        args.release_tag,
+        args.artifact_name,
+        expected_size,
+    ):
+        existing_metadata = load_existing_metadata(args.output)
+        if not existing_metadata or existing_metadata.get("download") == "direct-release-asset":
+            write_direct_download_metadata(args.output, args.repo, args.release_tag, args.artifact_name)
+        print(f"Reusing existing GitHub release asset after API fallback: {args.output}")
+        return
+
     args.output.unlink(missing_ok=True)
     metadata_path(args.output).unlink(missing_ok=True)
     download_with_retries(download_url, args.output, None, args.timeout, args.retries)

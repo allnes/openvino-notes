@@ -1,11 +1,13 @@
 package com.itlab.domain
 
 import com.itlab.domain.ai.NoteAiService
+import com.itlab.domain.ai.RewriteStyle
 import com.itlab.domain.model.ContentItem
 import com.itlab.domain.model.DataSource
 import com.itlab.domain.model.Note
 import com.itlab.domain.repository.NotesRepository
 import com.itlab.domain.usecase.aiusecase.ReleaseNoteAiUseCase
+import com.itlab.domain.usecase.aiusecase.RewriteNoteUseCase
 import com.itlab.domain.usecase.aiusecase.SuggestSummaryUseCase
 import com.itlab.domain.usecase.aiusecase.SuggestTagsUseCase
 import com.itlab.domain.usecase.noteusecase.ApplySummaryUseCase
@@ -51,9 +53,12 @@ class AIUseCasesTest {
     private class FakeNoteAiService : NoteAiService {
         var summaryInput: String? = null
         var textTagsInput: String? = null
+        var rewriteInput: String? = null
+        var rewriteMaxNewTokens: Int? = null
         var imageTagsInput: List<String> = emptyList()
 
         var summaryResult: String = "AI summary"
+        var rewriteResult: String = "AI rewrite"
         var textTagsResult: Set<String> = setOf("text-tag-1", "text-tag-2")
         var imageTagsResult: Set<String> = setOf("image-tag-1", "image-tag-2")
         var releaseCalled: Boolean = false
@@ -83,10 +88,14 @@ class AIUseCasesTest {
 
         override suspend fun rewrite(
             text: String,
-            style: com.itlab.domain.ai.RewriteStyle,
+            style: RewriteStyle,
             maxInputTokens: Int,
             maxNewTokens: Int,
-        ): String = text
+        ): String {
+            rewriteInput = text
+            rewriteMaxNewTokens = maxNewTokens
+            return rewriteResult
+        }
 
         override fun release() {
             releaseCalled = true
@@ -233,6 +242,29 @@ class AIUseCasesTest {
 
         assertEquals(true, ai.releaseCalled)
     }
+
+    @Test
+    fun rewriteNote_usesRewriteSizedGenerationBudget() =
+        runBlocking {
+            val repo = FakeNotesRepo()
+            val ai = FakeNoteAiService()
+            val useCase = RewriteNoteUseCase(ai, repo)
+
+            repo.createNote(
+                Note(
+                    id = "n-rewrite",
+                    title = "Rewrite",
+                    userId = testUserId,
+                    contentItems = listOf(ContentItem.Text(text = "Long editor note")),
+                ),
+            )
+
+            val result = useCase("n-rewrite")
+
+            assertEquals("AI rewrite", result.getOrThrow())
+            assertEquals("Long editor note", ai.rewriteInput)
+            assertEquals(128, ai.rewriteMaxNewTokens)
+        }
 
     @Test
     fun applySummary_updatesNoteSummary() =

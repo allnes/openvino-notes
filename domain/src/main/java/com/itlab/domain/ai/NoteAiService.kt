@@ -21,7 +21,7 @@ interface NoteAiService {
         text: String,
         style: RewriteStyle,
         maxInputTokens: Int = 768,
-        maxNewTokens: Int = 48,
+        maxNewTokens: Int = 128,
     ): String
 
     suspend fun tagIMGs(img: List<String>): Set<String>

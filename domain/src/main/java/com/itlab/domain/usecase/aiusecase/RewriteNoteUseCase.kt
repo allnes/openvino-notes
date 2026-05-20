@@ -19,7 +19,7 @@ class RewriteNoteUseCase(
         noteId: String,
         style: RewriteStyle = RewriteStyle.CLEANUP,
         maxInputTokens: Int = 768,
-        maxNewTokens: Int = 48,
+        maxNewTokens: Int = 128,
     ): Result<String> =
         runCatching {
             val note =
