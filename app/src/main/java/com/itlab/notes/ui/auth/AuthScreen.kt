@@ -141,7 +141,6 @@ fun authScreen(viewModel: AuthViewModel = koinViewModel()) {
                             googleSignInEnabled = googleSignInEnabled,
                             onGoogleClick = launchGoogleSignIn,
                             onEmailClick = { viewModel.openEmailStep() },
-                            onContinueOffline = { viewModel.continueOffline() },
                             errorMessage = state.errorMessage,
                         )
                     AuthScreenStep.Email ->
@@ -167,7 +166,6 @@ private fun authMethodChoiceContent(
     googleSignInEnabled: Boolean,
     onGoogleClick: () -> Unit,
     onEmailClick: () -> Unit,
-    onContinueOffline: () -> Unit,
     errorMessage: String?,
 ) {
     Column(
@@ -243,15 +241,6 @@ private fun authMethodChoiceContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        TextButton(
-            onClick = onContinueOffline,
-            enabled = !isLoading,
-        ) {
-            Text("Continue without signing in")
         }
     }
 }

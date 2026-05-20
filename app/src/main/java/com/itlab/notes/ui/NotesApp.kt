@@ -8,11 +8,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.itlab.notes.onboarding.LocalOnboardingRegistrar
 import com.itlab.notes.onboarding.OnboardingViewModel
 import com.itlab.notes.onboarding.coachMarkOverlay
 import com.itlab.notes.onboarding.welcomeOnboardingScreen
+import com.itlab.notes.ui.EditorCloudSyncStatus
 import com.itlab.notes.ui.auth.AuthViewModel
 import com.itlab.notes.ui.auth.authScreen
 import com.itlab.notes.ui.editor.editorScreen
@@ -53,6 +58,13 @@ fun notesApp() {
 
     val sessionKey = authViewModel.sessionKey ?: return
     key(sessionKey) {
+        val sessionViewModelStoreOwner =
+            remember(sessionKey) {
+                val store = ViewModelStore()
+                object : ViewModelStoreOwner {
+                    override val viewModelStore: ViewModelStore = store
+                }
+            }
         LaunchedEffect(sessionKey, onboardingState.showWelcome) {
             if (!onboardingState.showWelcome) {
                 onboardingViewModel.startTourIfNeeded()
@@ -60,6 +72,7 @@ fun notesApp() {
             }
         }
         CompositionLocalProvider(
+            LocalViewModelStoreOwner provides sessionViewModelStoreOwner,
             LocalOnboardingRegistrar provides { targetKey, bounds ->
                 onboardingViewModel.registerTarget(targetKey, bounds)
             },
@@ -105,6 +118,12 @@ private fun notesMain(
         onboardingViewModel.updateShowSignOutStep(authState.isSessionActive)
     }
 
+    LaunchedEffect(authState.isSessionActive) {
+        if (authState.isSessionActive) {
+            viewModel.ensureInitialFullSyncForCurrentUser()
+        }
+    }
+
     when (val screen = state.screen) {
         NotesUiScreen.Directories -> {
             directoriesScreen(
@@ -131,6 +150,9 @@ private fun notesMain(
                 },
                 showSignOut = authState.isSessionActive,
                 onSignOut = { authViewModel.signOut() },
+                pullToRefreshEnabled = authState.isSessionActive,
+                isPullRefreshing = state.isCloudDownloadActive,
+                onPullToRefresh = { viewModel.onEvent(NotesUiEvent.SyncCloud) },
                 showReturnToSignIn = authState.continueOffline && !authState.isSessionActive,
                 onReturnToSignIn = { authViewModel.exitOfflineToSignIn() },
             )
@@ -163,21 +185,32 @@ private fun notesMain(
                             viewModel.onEvent(NotesUiEvent.OpenNote(note))
                         },
                     ),
+                pullToRefreshEnabled = authState.isSessionActive,
+                isPullRefreshing = state.isCloudDownloadActive,
+                noteIdsUploading = state.noteIdsUploading,
+                onPullToRefresh = { viewModel.onEvent(NotesUiEvent.SyncCloud) },
             )
         }
 
         is NotesUiScreen.NoteEditor -> {
+            val editorUploading =
+                screen.note.id in state.noteIdsUploading ||
+                    screen.cloudSyncStatus == EditorCloudSyncStatus.Uploading
             editorScreen(
                 directoryName = screen.directory.name,
                 directoryId = screen.directory.id,
                 note = screen.note,
                 aiState = state.aiState,
+                cloudSyncStatus =
+                    if (editorUploading) {
+                        EditorCloudSyncStatus.Uploading
+                    } else {
+                        screen.cloudSyncStatus
+                    },
+                isCloudDownloadActive = state.isCloudDownloadActive,
                 onBack = { draft -> viewModel.onEvent(NotesUiEvent.LeaveEditor(draft)) },
                 onPersist = { draft ->
                     viewModel.onEvent(NotesUiEvent.PersistNote(draft))
-                },
-                onSave = { updated ->
-                    viewModel.onEvent(NotesUiEvent.SaveNote(updated))
                 },
                 onToggleFavorite = {
                     viewModel.onEvent(NotesUiEvent.ToggleNoteFavorite(screen.note.id))

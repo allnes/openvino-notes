@@ -11,9 +11,10 @@ import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.GoogleAuthProvider
+import com.itlab.domain.cloud.SyncCheckpointStore
 import com.itlab.notes.R
 import com.itlab.notes.auth.AppSessionPreferences
-import com.itlab.notes.auth.ClearLocalDataOnSignOut
+import com.itlab.notes.auth.NotesSessionHolder
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,7 +43,8 @@ class AuthViewModel(
     private val firebaseAuth: FirebaseAuth,
     private val app: Application,
     private val appSessionPreferences: AppSessionPreferences,
-    private val clearLocalDataOnSignOut: ClearLocalDataOnSignOut,
+    private val syncCheckpointStore: SyncCheckpointStore,
+    private val notesSessionHolder: NotesSessionHolder,
 ) : ViewModel() {
     private var shouldActivateSession = firebaseAuth.currentUser != null
 
@@ -91,6 +93,13 @@ class AuthViewModel(
                 }
             }
         }
+        viewModelScope.launch {
+            uiState.collect { syncNotesSessionHolder(it) }
+        }
+    }
+
+    private fun syncNotesSessionHolder(state: AuthUiState) {
+        notesSessionHolder.continueOffline = state.continueOffline && !state.isSessionActive
     }
 
     override fun onCleared() {
@@ -158,10 +167,9 @@ class AuthViewModel(
         appSessionPreferences.setContinueOffline(false)
     }
 
-    /** Leaves offline mode and returns to the sign-in choice screen. */
+    /** Leaves offline mode and returns to the sign-in choice screen. Offline notes stay in Room. */
     fun exitOfflineToSignIn() {
         viewModelScope.launch {
-            runCatching { clearLocalDataOnSignOut() }
             clearOfflineSession()
             _uiState.update {
                 it.copy(
@@ -274,7 +282,10 @@ class AuthViewModel(
             _uiState.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
             shouldActivateSession = false
             runCatching {
-                clearLocalDataOnSignOut()
+                // Keep notes in Room (keyed by userId). They reappear after sign-in; cloud sync can merge.
+                firebaseAuth.currentUser?.uid?.let { uid ->
+                    syncCheckpointStore.clearUser(uid)
+                }
                 clearOfflineSession()
                 firebaseAuth.signOut()
                 signOutGoogle()

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker.Result
 import androidx.work.testing.TestListenableWorkerBuilder
+import com.itlab.domain.cloud.SyncCheckpointStore
 import com.itlab.domain.cloud.SyncManager
 import io.mockk.Runs
 import io.mockk.clearAllMocks
@@ -22,13 +23,33 @@ import org.robolectric.annotation.Config
 import timber.log.Timber
 import java.io.IOException
 
-// Используем Robolectric, чтобы предоставить воркеру реальный Context
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SyncWorkerTest {
     private lateinit var context: Context
     private val syncManager = mockk<SyncManager>()
     private val authManager = mockk<AuthManager>()
+    private val syncCheckpointStore = mockk<SyncCheckpointStore>()
+
+    private fun stubIncrementalSyncReady() {
+        coEvery { syncCheckpointStore.hasCompletedInitialFullSync(any()) } returns true
+        coEvery { syncCheckpointStore.markInitialFullSyncCompleted(any()) } just Runs
+        coEvery { syncManager.hasPendingLocalChanges(any()) } returns true
+        coEvery { syncManager.hasPendingLocalChangesForNote(any(), any()) } returns false
+        coEvery { syncManager.syncIncremental(any()) } just Runs
+    }
+
+    private fun createWorker() =
+        TestListenableWorkerBuilder<SyncWorker>(context)
+            .setWorkerFactory(
+                object : androidx.work.WorkerFactory() {
+                    override fun createWorker(
+                        appContext: Context,
+                        workerClassName: String,
+                        workerParameters: androidx.work.WorkerParameters,
+                    ) = SyncWorker(appContext, workerParameters, syncManager, authManager, syncCheckpointStore)
+                },
+            ).build()
 
     @Before
     fun setUp() {
@@ -59,22 +80,11 @@ class SyncWorkerTest {
         runBlocking {
             val userId = "user_1"
             every { authManager.getCurrentUserId() } returns userId
-            coEvery { syncManager.sync(userId) } just Runs
+            // ФИКС: Мокаем успешное обновление токена
+            coEvery { authManager.refreshAuthToken() } returns true
+            stubIncrementalSyncReady()
 
-            // Создаем воркер через официальный билдер
-            val worker =
-                TestListenableWorkerBuilder<SyncWorker>(context)
-                    .setWorkerFactory(
-                        object : androidx.work.WorkerFactory() {
-                            override fun createWorker(
-                                appContext: Context,
-                                workerClassName: String,
-                                workerParameters: androidx.work.WorkerParameters,
-                            ) = SyncWorker(appContext, workerParameters, syncManager, authManager)
-                        },
-                    ).build()
-
-            val result = worker.doWork()
+            val result = createWorker().doWork()
 
             assertEquals(Result.success(), result)
         }
@@ -84,21 +94,22 @@ class SyncWorkerTest {
         runBlocking {
             every { authManager.getCurrentUserId() } returns null
 
-            val worker =
-                TestListenableWorkerBuilder<SyncWorker>(context)
-                    .setWorkerFactory(
-                        object : androidx.work.WorkerFactory() {
-                            override fun createWorker(
-                                appContext: Context,
-                                workerClassName: String,
-                                workerParameters: androidx.work.WorkerParameters,
-                            ) = SyncWorker(appContext, workerParameters, syncManager, authManager)
-                        },
-                    ).build()
-
-            val result = worker.doWork()
+            val result = createWorker().doWork()
 
             assertEquals(Result.failure(), result)
+        }
+
+    // НОВЫЙ ТЕСТ: Проверяем, что если токен временно недоступен, воркер уходит в RETRY
+    @Test
+    fun `doWork should return retry when auth token refresh fails`() =
+        runBlocking {
+            val userId = "user_1"
+            every { authManager.getCurrentUserId() } returns userId
+            coEvery { authManager.refreshAuthToken() } returns false
+
+            val result = createWorker().doWork()
+
+            assertEquals(Result.retry(), result)
         }
 
     @Test
@@ -106,21 +117,29 @@ class SyncWorkerTest {
         runBlocking {
             val userId = "user_1"
             every { authManager.getCurrentUserId() } returns userId
-            coEvery { syncManager.sync(userId) } throws IOException("No network")
+            // ФИКС: Токен валидный, но дальше падает сеть
+            coEvery { authManager.refreshAuthToken() } returns true
+            stubIncrementalSyncReady()
+            coEvery { syncManager.syncIncremental(userId) } throws IOException("No network")
 
-            val worker =
-                TestListenableWorkerBuilder<SyncWorker>(context)
-                    .setWorkerFactory(
-                        object : androidx.work.WorkerFactory() {
-                            override fun createWorker(
-                                appContext: Context,
-                                workerClassName: String,
-                                workerParameters: androidx.work.WorkerParameters,
-                            ) = SyncWorker(appContext, workerParameters, syncManager, authManager)
-                        },
-                    ).build()
+            val result = createWorker().doWork()
 
-            val result = worker.doWork()
+            assertEquals(Result.retry(), result)
+        }
+
+    @Test
+    fun `doWork should return retry when FirebaseException occurs`() =
+        runBlocking {
+            val userId = "user_1"
+            every { authManager.getCurrentUserId() } returns userId
+            coEvery { authManager.refreshAuthToken() } returns true
+
+            // Используем реальный инстанс FirebaseNetworkException вместо mockk
+            val firebaseException = com.google.firebase.FirebaseNetworkException("StorageException: 403 Forbidden")
+            stubIncrementalSyncReady()
+            coEvery { syncManager.syncIncremental(userId) } throws firebaseException
+
+            val result = createWorker().doWork()
 
             assertEquals(Result.retry(), result)
         }
@@ -130,21 +149,12 @@ class SyncWorkerTest {
         runBlocking {
             val userId = "user_1"
             every { authManager.getCurrentUserId() } returns userId
-            coEvery { syncManager.sync(userId) } throws RuntimeException("Fatal")
+            // ФИКС: Токен валидный, но дальше летит критическая ошибка
+            coEvery { authManager.refreshAuthToken() } returns true
+            stubIncrementalSyncReady()
+            coEvery { syncManager.syncIncremental(userId) } throws RuntimeException("Fatal")
 
-            val worker =
-                TestListenableWorkerBuilder<SyncWorker>(context)
-                    .setWorkerFactory(
-                        object : androidx.work.WorkerFactory() {
-                            override fun createWorker(
-                                appContext: Context,
-                                workerClassName: String,
-                                workerParameters: androidx.work.WorkerParameters,
-                            ) = SyncWorker(appContext, workerParameters, syncManager, authManager)
-                        },
-                    ).build()
-
-            val result = worker.doWork()
+            val result = createWorker().doWork()
 
             assertEquals(Result.failure(), result)
         }

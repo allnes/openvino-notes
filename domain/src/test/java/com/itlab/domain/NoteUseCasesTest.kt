@@ -13,30 +13,44 @@ import com.itlab.domain.usecase.noteusecase.DuplicateNoteUseCase
 import com.itlab.domain.usecase.noteusecase.GetAllFavoritesUseCase
 import com.itlab.domain.usecase.noteusecase.GetNoteUseCase
 import com.itlab.domain.usecase.noteusecase.GetNotesByTagUseCase
+import com.itlab.domain.usecase.noteusecase.GetUserIdUseCase
 import com.itlab.domain.usecase.noteusecase.MoveNoteToFolderUseCase
 import com.itlab.domain.usecase.noteusecase.ObserveNotesUseCase
 import com.itlab.domain.usecase.noteusecase.SearchNotesUseCase
 import com.itlab.domain.usecase.noteusecase.SwitchFavoriteUseCase
 import com.itlab.domain.usecase.noteusecase.UpdateNoteUseCase
+import io.mockk.MockKAnnotations
+import io.mockk.every
+import io.mockk.impl.annotations.MockK
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Before
 import org.junit.Test
 
 class NoteUseCasesTest {
     private val testUserId = "test_user_1"
 
+    @MockK
+    lateinit var getUserIdUsecase: GetUserIdUseCase
+
     private class FakeNotesRepo : NotesRepository {
         private val store = mutableMapOf<String, Note>()
         private val flow = MutableStateFlow<List<Note>>(emptyList())
 
-        override fun observeNotes() = flow
+        override fun observeNotes(userId: String) = flow
 
-        override fun observeNotesByFolder(folderId: String) = flow
+        override fun observeNotesByFolder(
+            folderId: String,
+            userId: String,
+        ) = flow
 
-        override suspend fun getNoteById(id: String): Note? = store[id]
+        override suspend fun getNoteById(
+            id: String,
+            userId: String,
+        ): Note? = store[id]
 
         override suspend fun createNote(note: Note): String {
             store[note.id] = note
@@ -49,7 +63,10 @@ class NoteUseCasesTest {
             flow.value = store.values.toList()
         }
 
-        override suspend fun deleteNote(id: String) {
+        override suspend fun deleteNote(
+            id: String,
+            userId: String,
+        ) {
             store.remove(id)
             flow.value = store.values.toList()
         }
@@ -58,7 +75,7 @@ class NoteUseCasesTest {
     private class FakeFolderRepo : NoteFolderRepository {
         private val store = mutableMapOf<String, NoteFolder>()
 
-        override fun observeFolders() = MutableStateFlow(emptyList<NoteFolder>())
+        override fun observeFolders(userId: String) = MutableStateFlow(emptyList<NoteFolder>())
 
         override suspend fun createFolder(folder: NoteFolder): String {
             store[folder.id] = folder
@@ -67,14 +84,27 @@ class NoteUseCasesTest {
 
         override suspend fun renameFolder(
             id: String,
+            userId: String,
             name: String,
         ) = Unit
 
-        override suspend fun deleteFolder(id: String) = Unit
+        override suspend fun deleteFolder(
+            id: String,
+            userId: String,
+        ) = Unit
 
-        override suspend fun getFolderById(id: String): NoteFolder? = store[id]
+        override suspend fun getFolderById(
+            id: String,
+            userId: String,
+        ): NoteFolder? = store[id]
 
         override suspend fun updateFolder(folder: NoteFolder) = Unit
+    }
+
+    @Before
+    fun setUp() {
+        MockKAnnotations.init(this)
+        every { getUserIdUsecase() } returns testUserId
     }
 
     @Test
@@ -82,10 +112,10 @@ class NoteUseCasesTest {
         runBlocking {
             val repo = FakeNotesRepo()
 
-            val create = CreateNoteUseCase(repo)
-            val update = UpdateNoteUseCase(repo)
-            val delete = DeleteNoteUseCase(repo)
-            val get = GetNoteUseCase(repo)
+            val create = CreateNoteUseCase(repo, getUserIdUsecase)
+            val update = UpdateNoteUseCase(repo, getUserIdUsecase)
+            val delete = DeleteNoteUseCase(repo, getUserIdUsecase)
+            val get = GetNoteUseCase(repo, getUserIdUsecase)
 
             val note = Note(id = "n1", title = "A", userId = testUserId)
 
@@ -111,10 +141,10 @@ class NoteUseCasesTest {
             val notesRepo = FakeNotesRepo()
             val folderRepo = FakeFolderRepo()
 
-            val move = MoveNoteToFolderUseCase(notesRepo, folderRepo)
-            val createNote = CreateNoteUseCase(notesRepo)
+            val move = MoveNoteToFolderUseCase(notesRepo, folderRepo, getUserIdUsecase)
+            val createNote = CreateNoteUseCase(notesRepo, getUserIdUsecase)
 
-            val folder = NoteFolder(id = "f1", name = "Folder")
+            val folder = NoteFolder(testUserId, id = "f1", name = "Folder")
             folderRepo.createFolder(folder)
 
             val note = Note(id = "n1", title = "Note", userId = testUserId)
@@ -122,7 +152,7 @@ class NoteUseCasesTest {
             val noteId = createNote(note).getOrThrow()
 
             move("f1", noteId).getOrThrow()
-            val updated = notesRepo.getNoteById(noteId)
+            val updated = notesRepo.getNoteById(noteId, testUserId)
 
             assertEquals("f1", updated?.folderId)
         }
@@ -131,8 +161,8 @@ class NoteUseCasesTest {
     fun observeNotes_returnsData() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val observe = ObserveNotesUseCase(repo)
-            val create = CreateNoteUseCase(repo)
+            val observe = ObserveNotesUseCase(repo, getUserIdUsecase)
+            val create = CreateNoteUseCase(repo, getUserIdUsecase)
 
             create(Note(id = "n1", title = "Test", userId = testUserId)).getOrThrow()
 
@@ -145,7 +175,7 @@ class NoteUseCasesTest {
     fun addTag_addsTagToNote() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = AddTagUseCase(repo)
+            val useCase = AddTagUseCase(repo, getUserIdUsecase)
 
             val note =
                 Note(
@@ -158,7 +188,7 @@ class NoteUseCasesTest {
 
             useCase("n1", "new-tag").getOrThrow()
 
-            val updated = repo.getNoteById("n1")
+            val updated = repo.getNoteById("n1", testUserId)
 
             assertEquals(setOf("old", "new-tag"), updated?.tags)
         }
@@ -167,7 +197,7 @@ class NoteUseCasesTest {
     fun addTag_throwsIfNoteNotFound() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = AddTagUseCase(repo)
+            val useCase = AddTagUseCase(repo, getUserIdUsecase)
 
             val result = useCase("missing_id", "tag")
             assertEquals(true, result.isFailure)
@@ -178,7 +208,7 @@ class NoteUseCasesTest {
     fun deleteTag_removesTagFromNote() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = DeleteTagUseCase(repo)
+            val useCase = DeleteTagUseCase(repo, getUserIdUsecase)
 
             val note =
                 Note(
@@ -191,7 +221,7 @@ class NoteUseCasesTest {
 
             useCase("n2", "remove-me").getOrThrow()
 
-            val updated = repo.getNoteById("n2")
+            val updated = repo.getNoteById("n2", testUserId)
 
             assertEquals(setOf("old"), updated?.tags)
         }
@@ -200,7 +230,7 @@ class NoteUseCasesTest {
     fun deleteTag_throwsIfNoteNotFound() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = DeleteTagUseCase(repo)
+            val useCase = DeleteTagUseCase(repo, getUserIdUsecase)
 
             val result = useCase("missing_id", "tag")
             assertEquals(true, result.isFailure)
@@ -211,7 +241,7 @@ class NoteUseCasesTest {
     fun duplicateNote_createsCopyWithNewIdAndCopiedTitle() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = DuplicateNoteUseCase(repo)
+            val useCase = DuplicateNoteUseCase(repo, getUserIdUsecase)
 
             val original =
                 Note(
@@ -226,7 +256,7 @@ class NoteUseCasesTest {
 
             val newId = useCase("n3").getOrThrow()
 
-            val duplicated = repo.getNoteById(newId)
+            val duplicated = repo.getNoteById(newId, testUserId)
 
             assertEquals(true, duplicated != null)
             assertEquals("Hello Copy", duplicated?.title)
@@ -241,7 +271,7 @@ class NoteUseCasesTest {
     fun duplicateNote_usesCopyWhenTitleBlank() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = DuplicateNoteUseCase(repo)
+            val useCase = DuplicateNoteUseCase(repo, getUserIdUsecase)
 
             val original =
                 Note(
@@ -253,7 +283,7 @@ class NoteUseCasesTest {
 
             val newId = useCase("n4").getOrThrow()
 
-            val duplicated = repo.getNoteById(newId)
+            val duplicated = repo.getNoteById(newId, testUserId)
 
             assertEquals("Copy", duplicated?.title)
         }
@@ -262,7 +292,7 @@ class NoteUseCasesTest {
     fun duplicateNote_throwsIfNoteNotFound() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = DuplicateNoteUseCase(repo)
+            val useCase = DuplicateNoteUseCase(repo, getUserIdUsecase)
 
             val result = useCase("missing_id")
             assertEquals(true, result.isFailure)
@@ -273,7 +303,7 @@ class NoteUseCasesTest {
     fun getAllFavorites_returnsOnlyFavoriteNotes() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = GetAllFavoritesUseCase(repo)
+            val useCase = GetAllFavoritesUseCase(repo, getUserIdUsecase)
 
             repo.createNote(
                 Note(
@@ -302,7 +332,7 @@ class NoteUseCasesTest {
     fun switchFavorite_turnsFavoriteOnAndOff() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = SwitchFavoriteUseCase(repo)
+            val useCase = SwitchFavoriteUseCase(repo, getUserIdUsecase)
 
             val note =
                 Note(
@@ -314,11 +344,11 @@ class NoteUseCasesTest {
             repo.createNote(note)
 
             useCase("n7").getOrThrow()
-            val afterFirstSwitch = repo.getNoteById("n7")
+            val afterFirstSwitch = repo.getNoteById("n7", testUserId)
             assertEquals(true, afterFirstSwitch?.isFavorite)
 
             useCase("n7").getOrThrow()
-            val afterSecondSwitch = repo.getNoteById("n7")
+            val afterSecondSwitch = repo.getNoteById("n7", testUserId)
             assertEquals(false, afterSecondSwitch?.isFavorite)
         }
 
@@ -326,7 +356,7 @@ class NoteUseCasesTest {
     fun switchFavorite_throwsIfNoteNotFound() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = SwitchFavoriteUseCase(repo)
+            val useCase = SwitchFavoriteUseCase(repo, getUserIdUsecase)
 
             val result = useCase("missing_id")
             assertEquals(true, result.isFailure)
@@ -337,7 +367,7 @@ class NoteUseCasesTest {
     fun getNotesByTag_returnsOnlyMatchingTag() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = GetNotesByTagUseCase(repo)
+            val useCase = GetNotesByTagUseCase(repo, getUserIdUsecase)
 
             repo.createNote(Note(id = "n10", tags = setOf("work", "urgent"), userId = testUserId))
             repo.createNote(Note(id = "n11", tags = setOf("personal"), userId = testUserId))
@@ -352,7 +382,7 @@ class NoteUseCasesTest {
     fun searchNotes_findsByTitleAndTextContent() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = SearchNotesUseCase(repo)
+            val useCase = SearchNotesUseCase(repo, getUserIdUsecase)
 
             repo.createNote(
                 Note(
@@ -380,12 +410,12 @@ class NoteUseCasesTest {
     fun addTag_trimsIncomingTag() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = AddTagUseCase(repo)
+            val useCase = AddTagUseCase(repo, getUserIdUsecase)
             repo.createNote(Note(id = "n1", title = "Test", tags = emptySet(), userId = testUserId))
 
             useCase("n1", "  kotlin  ")
 
-            val updated = repo.getNoteById("n1")
+            val updated = repo.getNoteById("n1", testUserId)
             assertEquals(setOf("kotlin"), updated?.tags)
         }
 }

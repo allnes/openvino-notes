@@ -13,26 +13,39 @@ import com.itlab.domain.usecase.aiusecase.SuggestSummaryUseCase
 import com.itlab.domain.usecase.aiusecase.SuggestTagsUseCase
 import com.itlab.domain.usecase.noteusecase.ApplySummaryUseCase
 import com.itlab.domain.usecase.noteusecase.ApplyTagsUseCase
+import com.itlab.domain.usecase.noteusecase.GetUserIdUseCase
+import io.mockk.MockKAnnotations
+import io.mockk.every
+import io.mockk.impl.annotations.MockK
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Before
 import org.junit.Test
 
 class AIUseCasesTest {
     private val testUserId = "test_user_1"
 
+    @MockK
+    lateinit var getUserIdUsecase: GetUserIdUseCase
+
     private class FakeNotesRepo : NotesRepository {
         private val store = mutableMapOf<String, Note>()
         private val flow = MutableStateFlow<List<Note>>(emptyList())
 
-        override fun observeNotes(): Flow<List<Note>> = flow
+        override fun observeNotes(userId: String): Flow<List<Note>> = flow
 
-        override fun observeNotesByFolder(folderId: String): Flow<List<Note>> =
-            flow.map { notes -> notes.filter { it.folderId == folderId } }
+        override fun observeNotesByFolder(
+            folderId: String,
+            userId: String,
+        ): Flow<List<Note>> = flow.map { notes -> notes.filter { it.folderId == folderId } }
 
-        override suspend fun getNoteById(id: String): Note? = store[id]
+        override suspend fun getNoteById(
+            id: String,
+            userId: String,
+        ): Note? = store[id]
 
         override suspend fun createNote(note: Note): String {
             store[note.id] = note
@@ -45,7 +58,10 @@ class AIUseCasesTest {
             flow.value = store.values.toList()
         }
 
-        override suspend fun deleteNote(id: String) {
+        override suspend fun deleteNote(
+            id: String,
+            userId: String,
+        ) {
             store.remove(id)
             flow.value = store.values.toList()
         }
@@ -103,12 +119,18 @@ class AIUseCasesTest {
         }
     }
 
+    @Before
+    fun setUp() {
+        MockKAnnotations.init(this)
+        every { getUserIdUsecase() } returns testUserId
+    }
+
     @Test
     fun suggestSummary_returnsDataAndSendsJoinedTextToAi() =
         runBlocking {
             val repo = FakeNotesRepo()
             val ai = FakeNoteAiService()
-            val useCase = SuggestSummaryUseCase(ai, repo)
+            val useCase = SuggestSummaryUseCase(ai, repo, getUserIdUsecase)
 
             val note =
                 Note(
@@ -138,7 +160,7 @@ class AIUseCasesTest {
         runBlocking {
             val repo = FakeNotesRepo()
             val ai = FakeNoteAiService()
-            val useCase = SuggestSummaryUseCase(ai, repo)
+            val useCase = SuggestSummaryUseCase(ai, repo, getUserIdUsecase)
 
             val result = useCase("missing_id")
             assertEquals(true, result.isFailure)
@@ -150,7 +172,7 @@ class AIUseCasesTest {
         runBlocking {
             val repo = FakeNotesRepo()
             val ai = FakeNoteAiService()
-            val useCase = SuggestTagsUseCase(ai, repo)
+            val useCase = SuggestTagsUseCase(ai, repo, getUserIdUsecase)
 
             val note =
                 Note(
@@ -187,7 +209,7 @@ class AIUseCasesTest {
         runBlocking {
             val repo = FakeNotesRepo()
             val ai = FakeNoteAiService()
-            val useCase = SuggestTagsUseCase(ai, repo)
+            val useCase = SuggestTagsUseCase(ai, repo, getUserIdUsecase)
 
             val result = useCase("missing_id")
             assertEquals(true, result.isFailure)
@@ -306,7 +328,7 @@ class AIUseCasesTest {
     fun applySummary_updatesNoteSummary() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = ApplySummaryUseCase(repo)
+            val useCase = ApplySummaryUseCase(repo, getUserIdUsecase)
 
             val note =
                 Note(
@@ -320,7 +342,7 @@ class AIUseCasesTest {
 
             useCase("n3", "new summary").getOrThrow()
 
-            val updated = repo.getNoteById("n3")
+            val updated = repo.getNoteById("n3", testUserId)
 
             assertEquals("new summary", updated?.summary)
         }
@@ -329,7 +351,7 @@ class AIUseCasesTest {
     fun applySummary_throwsIfNoteNotFound() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = ApplySummaryUseCase(repo)
+            val useCase = ApplySummaryUseCase(repo, getUserIdUsecase)
 
             val result = useCase("missing_id", "new summary")
             assertEquals(true, result.isFailure)
@@ -340,7 +362,7 @@ class AIUseCasesTest {
     fun applyTags_updatesNoteTags() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = ApplyTagsUseCase(repo)
+            val useCase = ApplyTagsUseCase(repo, getUserIdUsecase)
 
             val note =
                 Note(
@@ -356,7 +378,7 @@ class AIUseCasesTest {
 
             useCase("n4", newTags).getOrThrow()
 
-            val updated = repo.getNoteById("n4")
+            val updated = repo.getNoteById("n4", testUserId)
 
             assertEquals(newTags, updated?.tags)
         }
@@ -365,7 +387,7 @@ class AIUseCasesTest {
     fun applyTags_throwsIfNoteNotFound() =
         runBlocking {
             val repo = FakeNotesRepo()
-            val useCase = ApplyTagsUseCase(repo)
+            val useCase = ApplyTagsUseCase(repo, getUserIdUsecase)
 
             val result = useCase("missing_id", setOf("tag"))
             assertEquals(true, result.isFailure)

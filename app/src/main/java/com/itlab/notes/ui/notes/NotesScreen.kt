@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -33,6 +34,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -70,6 +72,10 @@ fun notesListScreen(
     onSearchQueryChange: (String) -> Unit,
     directories: List<DirectoryItemUi>,
     actions: NotesListActions,
+    pullToRefreshEnabled: Boolean = false,
+    isPullRefreshing: Boolean = false,
+    noteIdsUploading: Set<String> = emptySet(),
+    onPullToRefresh: () -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
     val selectedNoteIds = remember { mutableStateListOf<String>() }
@@ -99,55 +105,63 @@ fun notesListScreen(
 
     BackHandler(onBack = handleBack)
 
-    Scaffold(
-        containerColor = colors.background,
-        topBar = {
-            notesTopBar(
-                directoryName = directoryName,
+    Box(Modifier.fillMaxSize()) {
+        notesPullToRefreshBox(
+            enabled = pullToRefreshEnabled,
+            isRefreshing = isPullRefreshing,
+            onRefresh = onPullToRefresh,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            Scaffold(
+                containerColor = colors.background,
+                topBar = {
+                    notesTopBar(
+                        directoryName = directoryName,
+                        selectedCount = selectedCount,
+                        onBack = handleBack,
+                        onMoveSelected = { showMoveDialog = true },
+                        onDeleteSelected = { showDeleteDialog = true },
+                    )
+                },
+                floatingActionButton = {
+                    if (!isSelectionMode && canCreateNotesInDirectory(directoryId)) {
+                        notesFab(onAddNoteClick = actions.onAddNoteClick)
+                    }
+                },
+            ) { paddingValues ->
+                notesListContent(
+                    notes = notes,
+                    searchQuery = searchQuery,
+                    onSearchQueryChange = onSearchQueryChange,
+                    selectedNoteIds = selectedNoteIds,
+                    noteIdsUploading = noteIdsUploading,
+                    paddingValues = paddingValues,
+                    actions =
+                        NotesListContentActions(
+                            onNoteDelete = actions.onNoteDelete,
+                            onNoteClick = actions.onNoteClick,
+                        ),
+                )
+            }
+        }
+        if (showMoveDialog && selectedNoteIds.isNotEmpty()) {
+            notesMoveNotesDialog(
+                currentDirectoryId = directoryId,
+                directories = directories,
+                onDismissRequest = { showMoveDialog = false },
+                onFolderChosen = { folderId ->
+                    selectedNoteIds.forEach { noteId -> actions.onNoteMove(noteId, folderId) }
+                    selectedNoteIds.clear()
+                    showMoveDialog = false
+                },
+            )
+        }
+        if (showDeleteDialog && selectedNoteIds.isNotEmpty()) {
+            notesDeleteConfirmationDialog(
                 selectedCount = selectedCount,
-                onBack = handleBack,
-                onMoveSelected = { showMoveDialog = true },
-                onDeleteSelected = { showDeleteDialog = true },
+                onDismissRequest = { showDeleteDialog = false },
+                onConfirmDelete = deleteSelected,
             )
-        },
-        floatingActionButton = {
-            if (!isSelectionMode && canCreateNotesInDirectory(directoryId)) {
-                notesFab(onAddNoteClick = actions.onAddNoteClick)
-            }
-        },
-    ) { paddingValues ->
-        Box(Modifier.fillMaxSize()) {
-            notesListContent(
-                notes = notes,
-                searchQuery = searchQuery,
-                onSearchQueryChange = onSearchQueryChange,
-                paddingValues = paddingValues,
-                selectedNoteIds = selectedNoteIds,
-                actions =
-                    NotesListContentActions(
-                        onNoteDelete = actions.onNoteDelete,
-                        onNoteClick = actions.onNoteClick,
-                    ),
-            )
-            if (showMoveDialog && selectedNoteIds.isNotEmpty()) {
-                notesMoveNotesDialog(
-                    currentDirectoryId = directoryId,
-                    directories = directories,
-                    onDismissRequest = { showMoveDialog = false },
-                    onFolderChosen = { folderId ->
-                        selectedNoteIds.forEach { noteId -> actions.onNoteMove(noteId, folderId) }
-                        selectedNoteIds.clear()
-                        showMoveDialog = false
-                    },
-                )
-            }
-            if (showDeleteDialog && selectedNoteIds.isNotEmpty()) {
-                notesDeleteConfirmationDialog(
-                    selectedCount = selectedCount,
-                    onDismissRequest = { showDeleteDialog = false },
-                    onConfirmDelete = deleteSelected,
-                )
-            }
         }
     }
 }
@@ -442,14 +456,16 @@ private fun notesListContent(
     notes: List<NoteItemUi>,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
-    paddingValues: androidx.compose.foundation.layout.PaddingValues,
     selectedNoteIds: MutableList<String>,
+    noteIdsUploading: Set<String>,
+    paddingValues: PaddingValues,
     actions: NotesListContentActions,
 ) {
     val isSelectionMode = selectedNoteIds.isNotEmpty()
     Column(
         modifier =
             Modifier
+                .fillMaxSize()
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp),
     ) {
@@ -460,55 +476,67 @@ private fun notesListContent(
 
         val isSearchActive = searchQuery.isNotBlank()
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.padding(top = 4.dp),
+        BoxWithConstraints(
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
         ) {
-            if (notes.isEmpty() && isSearchActive) {
-                item {
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(top = 80.dp)
-                                .heightIn(min = 220.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        notesSearchEmptyState()
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .heightIn(min = maxHeight + 1.dp)
+                        .padding(top = 4.dp),
+            ) {
+                if (notes.isEmpty() && isSearchActive) {
+                    item {
+                        Box(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 80.dp)
+                                    .heightIn(min = 220.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            notesSearchEmptyState()
+                        }
                     }
                 }
-            }
-            val tourNoteId = notes.firstOrNull()?.id
-            items(
-                items = notes,
-                key = { note -> note.id },
-            ) { note ->
-                notesListItem(
-                    note = note,
-                    isSelected = note.id in selectedNoteIds,
-                    modifier =
-                        if (note.id == tourNoteId) {
-                            Modifier.onboardingTarget(OnboardingTargets.NOTES_NOTE_ROW)
-                        } else {
-                            Modifier
-                        },
-                    onClick = {
-                        if (isSelectionMode) {
-                            if (note.id in selectedNoteIds) {
-                                selectedNoteIds.remove(note.id)
+                val tourNoteId = notes.firstOrNull()?.id
+                items(
+                    items = notes,
+                    key = { note -> note.id },
+                ) { note ->
+                    notesListItem(
+                        note = note,
+                        isSelected = note.id in selectedNoteIds,
+                        isUploadingToCloud = note.id in noteIdsUploading,
+                        modifier =
+                            if (note.id == tourNoteId) {
+                                Modifier.onboardingTarget(OnboardingTargets.NOTES_NOTE_ROW)
                             } else {
+                                Modifier
+                            },
+                        onClick = {
+                            if (isSelectionMode) {
+                                if (note.id in selectedNoteIds) {
+                                    selectedNoteIds.remove(note.id)
+                                } else {
+                                    selectedNoteIds.add(note.id)
+                                }
+                            } else {
+                                actions.onNoteClick(note)
+                            }
+                        },
+                        onLongClick = {
+                            if (note.id !in selectedNoteIds) {
                                 selectedNoteIds.add(note.id)
                             }
-                        } else {
-                            actions.onNoteClick(note)
-                        }
-                    },
-                    onLongClick = {
-                        if (note.id !in selectedNoteIds) {
-                            selectedNoteIds.add(note.id)
-                        }
-                    },
-                )
+                        },
+                    )
+                }
             }
         }
     }
@@ -518,6 +546,7 @@ private fun notesListContent(
 private fun notesListItem(
     note: NoteItemUi,
     isSelected: Boolean,
+    isUploadingToCloud: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -525,6 +554,7 @@ private fun notesListItem(
     noteCard(
         note = note,
         isSelected = isSelected,
+        isUploadingToCloud = isUploadingToCloud,
         modifier = modifier,
         onClick = onClick,
         onLongClick = onLongClick,
@@ -536,6 +566,7 @@ private fun notesListItem(
 private fun noteCard(
     note: NoteItemUi,
     isSelected: Boolean,
+    isUploadingToCloud: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -563,19 +594,32 @@ private fun noteCard(
                 ),
     ) {
         Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
-            Text(
-                text = note.title,
-                color =
-                    if (isSelected) {
-                        colors.onPrimaryContainer
-                    } else {
-                        colors.onSurface
-                    },
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-            )
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = note.title,
+                    modifier = Modifier.weight(1f),
+                    color =
+                        if (isSelected) {
+                            colors.onPrimaryContainer
+                        } else {
+                            colors.onSurface
+                        },
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (isUploadingToCloud) {
+                    Spacer(Modifier.width(8.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = colors.primary,
+                    )
+                }
+            }
             Spacer(Modifier.height(8.dp))
             Text(
                 text = noteCardDescriptionText(note),

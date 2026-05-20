@@ -11,6 +11,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -102,6 +103,9 @@ fun directoriesScreen(
     onDirectoryClick: (DirectoryItemUi) -> Unit,
     showSignOut: Boolean = false,
     onSignOut: () -> Unit = {},
+    pullToRefreshEnabled: Boolean = false,
+    isPullRefreshing: Boolean = false,
+    onPullToRefresh: () -> Unit = {},
     showReturnToSignIn: Boolean = false,
     onReturnToSignIn: () -> Unit = {},
 ) {
@@ -113,36 +117,46 @@ fun directoriesScreen(
         showCreateDialog = false
     }
 
-    Scaffold(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) {
-                    focusManager.clearFocus(force = true)
-                },
-        containerColor = colors.background,
-        topBar = {
-            directoriesTopBar(
-                showSignOut = showSignOut,
-                onSignOut = onSignOut,
-                showReturnToSignIn = showReturnToSignIn,
-                onReturnToSignIn = onReturnToSignIn,
-                onAddDirectoryClick = { showCreateDialog = true },
+    notesPullToRefreshBox(
+        enabled = pullToRefreshEnabled,
+        isRefreshing = isPullRefreshing,
+        onRefresh = onPullToRefresh,
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        Scaffold(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) {
+                        focusManager.clearFocus(force = true)
+                    },
+            containerColor = colors.background,
+            topBar = {
+                directoriesTopBar(
+                    showSignOut = showSignOut,
+                    onSignOut = onSignOut,
+                    showReturnToSignIn = showReturnToSignIn,
+                    onReturnToSignIn = onReturnToSignIn,
+                    onAddDirectoryClick = { showCreateDialog = true },
+                )
+            },
+        ) { paddingValues ->
+            directoriesList(
+                directories = directories,
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchQueryChange,
+                onDirectoryLongClick = onDeleteDirectory,
+                onDirectoryRename = onRenameDirectory,
+                onDirectoryClick = onDirectoryClick,
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
             )
-        },
-    ) { paddingValues ->
-        directoriesList(
-            directories = directories,
-            searchQuery = searchQuery,
-            onSearchQueryChange = onSearchQueryChange,
-            onDirectoryLongClick = onDeleteDirectory,
-            onDirectoryRename = onRenameDirectory,
-            onDirectoryClick = onDirectoryClick,
-            modifier = Modifier.padding(paddingValues),
-        )
+        }
     }
     if (showCreateDialog) {
         directoriesCreateDirectoryDialog(
@@ -412,75 +426,80 @@ private fun directoriesList(
             onQueryChange = onSearchQueryChange,
             modifier = Modifier.onboardingTarget(OnboardingTargets.DIRECTORIES_SEARCH),
         )
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(bottom = 12.dp),
-        ) {
-            fun LazyListScope.addSection(
-                title: String,
-                dirs: List<DirectoryItemUi>,
-                tourHighlightDirectoryId: String? = null,
+        BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            LazyColumn(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .heightIn(min = maxHeight + 1.dp),
+                contentPadding = PaddingValues(bottom = 12.dp),
             ) {
-                if (dirs.isEmpty()) return
-                item { sectionTitle(title = title) }
-                item {
-                    directoriesBlock(
-                        directories = dirs,
-                        onDirectoryClick = onDirectoryClick,
-                        onDirectoryLongClick = { pendingDelete = it },
-                        tourHighlightDirectoryId = tourHighlightDirectoryId,
-                    )
-                }
-            }
-
-            item {
-                directoriesHeroPanel(
-                    directoriesCount = regularDirectories.size,
-                    totalNotesCount = totalNotesCount,
-                )
-            }
-            allNotesDirectory?.let { allNotes ->
-                addSection("Everything", listOf(allNotes))
-            }
-            favoritesDirectory?.let { favorites ->
-                addSection("Favorite notes", listOf(favorites))
-            }
-            if (!isSearchActive) {
-                addSection("Continue working", listOf(recentDirectory))
-            }
-            addSection(
-                title = "Regular directories",
-                dirs = regularDirectories,
-                tourHighlightDirectoryId =
-                    regularDirectories.firstOrNull()?.id ?: allNotesDirectory?.id,
-            )
-
-            when {
-                isSearchActive && directories.isEmpty() -> {
+                fun LazyListScope.addSection(
+                    title: String,
+                    dirs: List<DirectoryItemUi>,
+                    tourHighlightDirectoryId: String? = null,
+                ) {
+                    if (dirs.isEmpty()) return
+                    item { sectionTitle(title = title) }
                     item {
-                        Box(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 80.dp)
-                                    .heightIn(min = 220.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            directoriesSearchEmptyState()
-                        }
+                        directoriesBlock(
+                            directories = dirs,
+                            onDirectoryClick = onDirectoryClick,
+                            onDirectoryLongClick = { pendingDelete = it },
+                            tourHighlightDirectoryId = tourHighlightDirectoryId,
+                        )
                     }
                 }
-                !isSearchActive && regularDirectories.isEmpty() -> {
-                    item {
-                        Box(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 80.dp)
-                                    .heightIn(min = 220.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            directoriesEmptyState()
+
+                item {
+                    directoriesHeroPanel(
+                        directoriesCount = regularDirectories.size,
+                        totalNotesCount = totalNotesCount,
+                    )
+                }
+                allNotesDirectory?.let { allNotes ->
+                    addSection("Everything", listOf(allNotes))
+                }
+                favoritesDirectory?.let { favorites ->
+                    addSection("Favorite notes", listOf(favorites))
+                }
+                if (!isSearchActive) {
+                    addSection("Continue working", listOf(recentDirectory))
+                }
+                addSection(
+                    title = "Regular directories",
+                    dirs = regularDirectories,
+                    tourHighlightDirectoryId =
+                        regularDirectories.firstOrNull()?.id ?: allNotesDirectory?.id,
+                )
+
+                when {
+                    isSearchActive && directories.isEmpty() -> {
+                        item {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 80.dp)
+                                        .heightIn(min = 220.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                directoriesSearchEmptyState()
+                            }
+                        }
+                    }
+                    !isSearchActive && regularDirectories.isEmpty() -> {
+                        item {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 80.dp)
+                                        .heightIn(min = 220.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                directoriesEmptyState()
+                            }
                         }
                     }
                 }

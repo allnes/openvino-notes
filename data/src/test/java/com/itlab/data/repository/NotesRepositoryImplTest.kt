@@ -2,6 +2,7 @@ package com.itlab.data.repository
 
 import com.itlab.data.dao.MediaDao
 import com.itlab.data.dao.NoteDao
+import com.itlab.data.entity.MediaEntity
 import com.itlab.data.entity.NoteEntity
 import com.itlab.data.mapper.NoteMapper
 import com.itlab.domain.model.ContentItem
@@ -10,7 +11,6 @@ import com.itlab.domain.model.Note
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -32,6 +32,18 @@ class NotesRepositoryImplTest {
     private val repository = NotesRepositoryImpl(noteDao, mediaDao, mapper)
     private val testUserId = "test_user_1"
 
+    private fun createTestNote(
+        id: String,
+        contentItems: List<ContentItem> = emptyList(),
+    ) = Note(
+        userId = testUserId,
+        id = id,
+        title = "Test Title",
+        contentItems = contentItems,
+        createdAt = Clock.System.now(),
+        updatedAt = Clock.System.now(),
+    )
+
     @Test
     fun `createNote inserts note and media if exists`() =
         runTest {
@@ -52,129 +64,170 @@ class NotesRepositoryImplTest {
         }
 
     @Test
-    fun `updateNote cleans old media and inserts new`() =
+    fun `updateNote does nothing if note does not exist in database`() =
         runTest {
-            val note =
-                Note(
-                    userId = testUserId,
-                    id = "note_1",
-                    title = "Updated",
-                    createdAt = Clock.System.now(),
-                    updatedAt = Clock.System.now(),
-                )
+            val note = createTestNote("note_1")
+            coEvery { noteDao.getNoteByIdAndUser("note_1", testUserId) } returns null
 
             repository.updateNote(note)
 
-            coVerifyOrder {
-                noteDao.update(any())
-                mediaDao.deleteByNoteId("note_1")
-            }
+            coVerify(exactly = 0) { noteDao.update(any()) }
+            coVerify(exactly = 0) { mediaDao.insertAll(any()) }
+        }
+
+    @Test
+    fun `updateNote correctly soft deletes removed media and inserts new media`() =
+        runTest {
+            val noteId = "note_123"
+
+            val imageItem =
+                ContentItem.Image(
+                    source = DataSource(localPath = "some/new_path.png", remoteUrl = null),
+                    mimeType = "image/png",
+                )
+            val updatedNote = createTestNote(noteId, listOf(imageItem))
+
+            coEvery { noteDao.getNoteByIdAndUser(noteId, testUserId) } returns mockk(relaxed = true)
+
+            val oldMediaEntity =
+                mockk<MediaEntity>(relaxed = true) {
+                    every { id } returns "media_old"
+                }
+
+            coEvery { mediaDao.getMediaForNote(noteId) } returns listOf(oldMediaEntity)
+
+            repository.updateNote(updatedNote)
+
+            coVerify(exactly = 1) { noteDao.update(any()) }
+            coVerify(exactly = 1) { mediaDao.softDeleteMediaByIds(listOf("media_old")) }
+            coVerify(exactly = 1) { mediaDao.insertAll(any()) }
+        }
+
+    @Test
+    fun `updateNote without changes to media should only update note and not soft delete anything`() =
+        runTest {
+            val noteId = "note_1"
+            val noteWithoutMedia = createTestNote(noteId, emptyList())
+
+            coEvery { noteDao.getNoteByIdAndUser(noteId, testUserId) } returns mockk(relaxed = true)
+            coEvery { mediaDao.getMediaForNote(noteId) } returns emptyList()
+
+            repository.updateNote(noteWithoutMedia)
+
+            coVerify(exactly = 1) { noteDao.update(any()) }
+            coVerify(exactly = 0) { mediaDao.softDeleteMediaByIds(any()) }
+            coVerify(exactly = 0) { mediaDao.insertAll(any()) }
         }
 
     @Test
     fun `deleteNote deletes by entity from dao`() =
         runTest {
             val noteId = "1"
-            coEvery { noteDao.getNoteByld(noteId) } returns mockk(relaxed = true)
+            coEvery { noteDao.getNoteByIdAndUser(noteId, testUserId) } returns mockk(relaxed = true)
 
-            repository.deleteNote(noteId)
-            coVerify { noteDao.delete(any()) }
+            repository.deleteNote(noteId, testUserId)
+            coVerify { noteDao.softDeleteById(noteId, testUserId, any()) }
+            coVerify { mediaDao.softDeleteByNoteId(noteId) }
         }
 
     @Test
     fun `observeNotes emits mapped list from dao`() =
         runTest {
             val entities = listOf(mockk<NoteEntity>(relaxed = true))
-            coEvery { noteDao.getAllNotes() } returns flowOf(entities)
+            coEvery { noteDao.getAllNotesByUserId(testUserId) } returns flowOf(entities)
+            coEvery { mediaDao.getAllMediaByUserId(testUserId) } returns flowOf(emptyList())
 
-            val result = repository.observeNotes().first()
+            val result = repository.observeNotes(testUserId).first()
 
             assertEquals(1, result.size)
-            coVerify { noteDao.getAllNotes() }
+            coVerify { noteDao.getAllNotesByUserId(testUserId) }
         }
 
     @Test
     fun `observeNotesByFolder emits filtered list`() =
         runTest {
             val folderId = "folder_x"
-            coEvery { noteDao.getNotesByFolder(folderId) } returns flowOf(emptyList())
+            coEvery { noteDao.getNotesByFolderAndUser(folderId, testUserId) } returns flowOf(emptyList())
+            coEvery { mediaDao.getAllMediaByUserId(testUserId) } returns flowOf(emptyList())
 
-            val result = repository.observeNotesByFolder(folderId).first()
+            val result = repository.observeNotesByFolder(folderId, testUserId).first()
 
             assertTrue(result.isEmpty())
-            coVerify { noteDao.getNotesByFolder(folderId) }
+            coVerify { noteDao.getNotesByFolderAndUser(folderId, testUserId) }
         }
 
     @Test
     fun `updateNote with media calls insertAll`() =
         runTest {
+            val noteId = "note_123"
             val imageItem =
                 ContentItem.Image(
                     source = DataSource(localPath = "some/path", remoteUrl = null),
                     mimeType = "image/png",
                 )
+            val noteWithMedia = createTestNote(noteId, listOf(imageItem))
 
-            val noteWithMedia =
-                Note(
-                    userId = testUserId,
-                    id = "note_123",
-                    title = "Note with Image",
-                    contentItems = listOf(imageItem),
-                    createdAt = Clock.System.now(),
-                    updatedAt = Clock.System.now(),
-                )
+            coEvery { noteDao.getNoteByIdAndUser(noteId, testUserId) } returns mockk(relaxed = true)
+            coEvery { mediaDao.getMediaForNote(noteId) } returns emptyList()
 
             repository.updateNote(noteWithMedia)
 
-            coVerify { noteDao.update(any()) }
-            coVerify { mediaDao.deleteByNoteId("note_123") }
-            coVerify { mediaDao.insertAll(any()) }
+            coVerify(exactly = 1) { noteDao.update(any()) }
+            coVerify(exactly = 1) { mediaDao.insertAll(any()) }
+            coVerify(exactly = 0) { mediaDao.softDeleteMediaByIds(any()) }
         }
 
     @Test
     fun `updateNote without media should only call update and delete`() =
         runTest {
+            val noteId = "2"
             val noteWithoutMedia =
                 Note(
                     userId = testUserId,
-                    id = "2",
+                    id = noteId,
                     title = "No Media",
                     contentItems = emptyList(),
+                    createdAt = Clock.System.now(),
+                    updatedAt = Clock.System.now(),
                 )
+
+            coEvery { noteDao.getNoteByIdAndUser(noteId, testUserId) } returns mockk(relaxed = true)
+            coEvery { mediaDao.getMediaForNote(noteId) } returns emptyList()
 
             repository.updateNote(noteWithoutMedia)
 
-            coVerify { noteDao.update(any()) }
-            coVerify { mediaDao.deleteByNoteId("2") }
+            coVerify(exactly = 1) { noteDao.update(any()) }
+
+            coVerify(exactly = 0) { mediaDao.softDeleteMediaByIds(any()) }
             coVerify(exactly = 0) { mediaDao.insertAll(any()) }
         }
 
     @Test
     fun `deleteNote does nothing if note not found`() =
         runTest {
-            coEvery { noteDao.getNoteByld("non_existent") } returns null
+            val nonExistentId = "non_existent"
 
-            repository.deleteNote("non_existent")
+            repository.deleteNote(nonExistentId, testUserId)
 
-            coVerify(exactly = 0) { noteDao.delete(any()) }
+            coVerify(exactly = 1) { noteDao.softDeleteById(nonExistentId, testUserId, any()) }
         }
 
     @Test
     fun `getNoteById returns null correctly`() =
         runTest {
-            coEvery { noteDao.getNoteByld("any") } returns null
-            val result = repository.getNoteById("any")
+            coEvery { noteDao.getNoteByIdAndUser("any", testUserId) } returns null
+            val result = repository.getNoteById("any", testUserId)
             assertNull(result)
         }
 
     @Test
     fun `deleteNote should not call dao delete if note is null`() =
         runTest {
-            coEvery { noteDao.getNoteByld("missing_id") } returns null
+            val missingId = "missing_id"
 
-            repository.deleteNote("missing_id")
+            repository.deleteNote(missingId, testUserId)
 
-            coVerify(exactly = 0) { noteDao.delete(any()) }
+            coVerify(exactly = 1) { noteDao.softDeleteById(missingId, testUserId, any()) }
         }
 
     @Test
@@ -182,9 +235,10 @@ class NotesRepositoryImplTest {
         runTest {
             val folderId = "folder_1"
             val flow = MutableStateFlow<List<NoteEntity>>(emptyList())
-            coEvery { noteDao.getNotesByFolder(folderId) } returns flow
+            coEvery { noteDao.getNotesByFolderAndUser(folderId, testUserId) } returns flow
+            coEvery { mediaDao.getAllMediaByUserId(testUserId) } returns flowOf(emptyList())
 
-            val firstResult = repository.observeNotesByFolder(folderId).first()
+            val firstResult = repository.observeNotesByFolder(folderId, testUserId).first()
             assertTrue(firstResult.isEmpty())
 
             val entity =
@@ -192,7 +246,7 @@ class NotesRepositoryImplTest {
                     every { id } returns "n1"
                 }
             flow.value = listOf(entity)
-            val secondResult = repository.observeNotesByFolder(folderId).first()
+            val secondResult = repository.observeNotesByFolder(folderId, testUserId).first()
             assertEquals(1, secondResult.size)
         }
 
@@ -200,9 +254,10 @@ class NotesRepositoryImplTest {
     fun `observeNotes emits list when dao has data`() =
         runTest {
             val entity = mockk<NoteEntity>(relaxed = true)
-            coEvery { noteDao.getAllNotes() } returns flowOf(listOf(entity))
+            coEvery { noteDao.getAllNotesByUserId(testUserId) } returns flowOf(listOf(entity))
+            coEvery { mediaDao.getAllMediaByUserId(testUserId) } returns flowOf(emptyList())
 
-            val result = repository.observeNotes().first()
+            val result = repository.observeNotes(testUserId).first()
 
             assertEquals(1, result.size)
         }
@@ -210,11 +265,11 @@ class NotesRepositoryImplTest {
     @Test
     fun `deleteNote handles missing note gracefully`() =
         runTest {
-            coEvery { noteDao.getNoteByld("unknown") } returns null
+            val unknownId = "unknown"
 
-            repository.deleteNote("unknown")
+            repository.deleteNote(unknownId, testUserId)
 
-            coVerify(exactly = 0) { noteDao.delete(any()) }
+            coVerify(exactly = 1) { noteDao.softDeleteById(unknownId, testUserId, any()) }
         }
 
     @Test
@@ -223,9 +278,10 @@ class NotesRepositoryImplTest {
             val noteId = "note_123"
             val entity = mockk<NoteEntity>(relaxed = true)
 
-            coEvery { noteDao.getNoteByld(noteId) } returns entity
+            coEvery { noteDao.getNoteByIdAndUser(noteId, testUserId) } returns entity
+            coEvery { mediaDao.getMediaForNote(noteId) } returns emptyList()
 
-            val result = repository.getNoteById(noteId)
+            val result = repository.getNoteById(noteId, testUserId)
 
             assertNotNull(result)
         }
@@ -248,6 +304,7 @@ class NotesRepositoryImplTest {
 
             coEvery { noteDao.insert(any()) } just Runs
             coEvery { mediaDao.insertAll(any()) } just Runs
+            coEvery { noteDao.getNoteByIdAndUser("note_with_pic", testUserId) } returns mockk(relaxed = true)
 
             repository.updateNote(noteWithMedia)
 

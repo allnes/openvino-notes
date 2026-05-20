@@ -70,6 +70,58 @@ class EditorViewModel(
         attachments = attachments.filterNot { it.id == id }
     }
 
+    /** Applies attachment list from DB (after save/sync); keeps only unsaved local imports not on server. */
+    fun syncAttachmentsFromNote(fromNote: List<ContentItem>) {
+        val incoming = fromNote.withoutTextItems()
+        val incomingById = incoming.associateBy { it.id }
+        val localById = attachments.associateBy { it.id }
+        val merged =
+            incoming.map { remote ->
+                localById[remote.id]?.let { mergeItemSources(it, remote) } ?: remote
+            }
+        val unsavedLocal =
+            attachments.filter { it.isUnsavedLocalAttachment() && it.id !in incomingById }
+        attachments = merged + unsavedLocal
+    }
+
+    private fun mergeItemSources(
+        local: ContentItem,
+        remote: ContentItem,
+    ): ContentItem =
+        when (local) {
+            is ContentItem.Image ->
+                (remote as? ContentItem.Image)?.let { r ->
+                    local.copy(
+                        source =
+                            local.source.copy(
+                                localPath = local.source.localPath ?: r.source.localPath,
+                                remoteUrl = local.source.remoteUrl ?: r.source.remoteUrl,
+                            ),
+                    )
+                } ?: local
+            is ContentItem.File ->
+                (remote as? ContentItem.File)?.let { r ->
+                    local.copy(
+                        source =
+                            local.source.copy(
+                                localPath = local.source.localPath ?: r.source.localPath,
+                                remoteUrl = local.source.remoteUrl ?: r.source.remoteUrl,
+                            ),
+                    )
+                } ?: local
+            else -> local
+        }
+
+    private fun ContentItem.isUnsavedLocalAttachment(): Boolean {
+        val source =
+            when (this) {
+                is ContentItem.Image -> this.source
+                is ContentItem.File -> this.source
+                else -> return false
+            }
+        return !source.localPath.isNullOrBlank() && source.remoteUrl.isNullOrBlank()
+    }
+
     fun buildUpdatedNote(): NoteItemUi =
         NoteItemUi(
             id = noteId,

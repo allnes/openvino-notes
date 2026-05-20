@@ -9,6 +9,14 @@ complexity:
   CyclomaticComplexMethod:
     active: false
 
+exceptions:
+  TooGenericExceptionCaught:
+    active: false
+  SwallowedException:
+    active: false
+
 style:
   ReturnCount:
+    active: false
+  UnusedParameter:
     active: false
